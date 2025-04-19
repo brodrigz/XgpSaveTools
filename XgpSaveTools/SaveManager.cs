@@ -20,24 +20,10 @@ namespace XgpSaveTools
 	// Main extractor class
 	public class SaveManager
 	{
-		private string? GetXboxUserName(ulong uid)
-		{
-			try
-			{
-				var path = Path.Combine(PackagesRoot, "Microsoft.XboxApp_8wekyb3d8bbwe", "LocalState", "XboxLiveGamer.xml");
-				if (!File.Exists(path)) return null;
-				using var doc = JsonDocument.Parse(File.ReadAllText(path));
-				var root = doc.RootElement;
-				if (root.GetProperty("XboxUserId").GetUInt64() == uid)
-					return root.GetProperty("Gamertag").GetString();
-			}
-			catch { }
-			return null;
-		}
+		public string? OverrideWgsPath { get; set; }
 
-		public List<UserContainerFolder> FindUserContainers(string pkg)
+		private List<UserContainerFolder> _FindUserContainers(string baseDir)
 		{
-			var baseDir = Path.Combine(PackagesRoot, pkg, "SystemAppData", "wgs");
 			if (!Directory.Exists(baseDir)) return new();
 			var dirs = Directory.GetDirectories(baseDir)
 				.Where(d => !Path.GetFileName(d).Equals("t", StringComparison.OrdinalIgnoreCase))
@@ -48,9 +34,32 @@ namespace XgpSaveTools
 			{
 				var parts = Path.GetFileName(d).Split('_', 2);
 				var uid = Convert.ToUInt64(parts[0], 16);
-				result.Add(new(GetXboxUserName(uid) ?? parts[0], d));
+				result.Add(new(parts[0], d));
 			}
 			return result;
+		}
+		public List<UserContainerFolder> FindUserContainers(string pkg)
+		{
+			var baseDir = Path.Combine(PackagesRoot, pkg, "SystemAppData", "wgs");
+			return _FindUserContainers(OverrideWgsPath ?? baseDir);
+		}
+
+		public GameInfo? DiscoverGameInfoFromPath(string path)
+		{
+			var userContainers = _FindUserContainers(path);
+			if (!userContainers.Any())
+			{
+				Console.WriteLine("No user container found, directory is not on wgs format");
+				return null;
+			}
+			// read first to discover package
+			var result = ReadUserContainers(userContainers.FirstOrDefault().Dir);
+			var found = ReadGameList().FirstOrDefault(x => x.Package == result.StorePkg);
+			if (found == null)
+			{
+				Console.WriteLine($"Package {result.StorePkg} is not supported, add to games.json");
+			}
+			return found;
 		}
 
 		public (string StorePkg, List<ContainerMetaFile> Containers) ReadUserContainers(string userWgsDir)
@@ -167,13 +176,16 @@ namespace XgpSaveTools
 
 		public void ReplaceEntries(GameInfo info, UserContainerFolder userContainer, IEnumerable<EntryReplacement> replacements)
 		{
+			Console.WriteLine("");
 			Console.WriteLine($"{replacements.Count()} entries will be replaced");
+			Console.WriteLine("");
 			Console.WriteLine($"Backup created at {BackupFolder(info, userContainer)}");
-
+			Console.WriteLine("");
 			foreach (var rep in replacements)
 			{
 				Console.WriteLine($"Replacing {rep.TargetFile.Path}");
 				File.Copy(rep.ReplacementFile.FullName, rep.TargetFile.Path, overwrite: true);
+				Console.WriteLine("");
 			}
 			Console.WriteLine("");
 			Console.WriteLine("All replacements completed.");

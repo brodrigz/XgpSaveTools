@@ -8,9 +8,12 @@ namespace Xgpst_ConsoleApp
 {
 	internal class Program
 	{
+		public static string? overridePath = null;
 		static SaveManager manager;
 		static void Main(string[] args)
 		{
+			Console.ResetColor();
+			AppDomain.CurrentDomain.UnhandledException += UnhandledExceptionHandler;
 			AppDomain.CurrentDomain.ProcessExit += (_, _) => XgpSaveTools.Extensions.IoExtensions.ClearTempFolders();
 			manager = new SaveManager();
 			Console.WriteLine(new string('=', 40));
@@ -45,25 +48,18 @@ namespace Xgpst_ConsoleApp
 			}
 
 			// User selects game
-			Console.WriteLine("Installed supported games:");
-			for (int i = 0; i < found.Count; i++)
-			{
-				Console.WriteLine($"{i + 1}) {found[i].Name}");
-			}
-			Console.WriteLine("Enter number:");
-			if (!int.TryParse(Console.ReadLine(), out int input)) throw new ArgumentException("Invalid input");
-			var selectedGame = found[input - 1];
-			Console.WriteLine("");
+			var selectedGame = SelectGame(found);
 
 			// Discover user containers
 			var userContainers = manager.FindUserContainers(selectedGame.Package).ToList();
+			if (!userContainers.Any()) throw new ArgumentException("No user containers found");
 			Console.WriteLine("Found user folders:");
 			for (int i = 0; i < userContainers.Count; i++)
 			{
 				Console.WriteLine($"{i + 1}) {userContainers[i].UserTag}");
 			}
 			Console.WriteLine("Enter number:");
-			if (!int.TryParse(Console.ReadLine(), out input)) throw new ArgumentException("Invalid input");
+			if (!int.TryParse(Console.ReadLine(), out var input)) throw new ArgumentException("Invalid input");
 			var selectedUserContainer = userContainers[input - 1];
 			Console.WriteLine("");
 
@@ -85,6 +81,34 @@ namespace Xgpst_ConsoleApp
 			Console.WriteLine("");
 			Console.WriteLine("Done");
 			Console.ReadLine();
+		}
+
+		private static GameInfo SelectGame(List<GameInfo> found)
+		{
+			Console.WriteLine("Installed supported games:");
+			for (int i = 0; i < found.Count(); i++)
+			{
+				Console.WriteLine($"{i + 1}) {found[i].Name}");
+			}
+			int overridePathOption = found.Count() + 1;
+			Console.WriteLine($"{overridePathOption}) Custom path");
+			Console.WriteLine("Enter number:");
+			if (!int.TryParse(Console.ReadLine(), out int input)) throw new ArgumentException("Invalid input");
+			if (input == overridePathOption)
+			{
+				Console.WriteLine("Enter wgs folder path:");
+				var dir = new DirectoryInfo(Console.ReadLine()!.Unquote());
+				if (!Directory.Exists(dir.FullName)) throw new FileNotFoundException();
+				Console.WriteLine("");
+				manager.OverrideWgsPath = dir.FullName;
+				return manager.DiscoverGameInfoFromPath(dir.FullName) ?? throw new ArgumentException("Could not read container from custom path");
+			}
+			else return found[input - 1];
+		}
+
+		private static void SelectCustomPath()
+		{
+
 		}
 
 		private static EntryReplacement CreateEntryReplacement(SaveFile selectedEntry)
@@ -137,6 +161,17 @@ namespace Xgpst_ConsoleApp
 			if (!File.Exists(path)) throw new FileNotFoundException();
 
 			//if (!int.TryParse(Console.ReadLine(), out input)) throw new ArgumentException("Invalid input");
+		}
+
+		private static void UnhandledExceptionHandler(object sender, UnhandledExceptionEventArgs e)
+		{
+			Console.ForegroundColor = ConsoleColor.Red;
+			Exception? ex = e.ExceptionObject as Exception;
+			Console.WriteLine("");
+			Console.WriteLine("[Error]:{0}", ex?.Message ?? "Unhandled Ex");
+			Console.ResetColor();
+			Console.ReadKey();
+			Environment.Exit(1);
 		}
 	}
 }
