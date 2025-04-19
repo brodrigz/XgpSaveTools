@@ -135,10 +135,22 @@ If a game requires a new format handler, you must implement the `ISaveHandler` i
 
 ---
 
-## ⚙ Build & Installation
+## ⚙️ Build & Installation
 
-Currently, no binary release packages are available. You must clone the repository and build the executable yourself.
+You can grab the latest pre-built executable release at https://github.com/brodrigz/XgpSaveTools/releases
 
+### 🔨 Build from Source
+
+If you prefer to build yourself, clone the repo and publish with .NET 6:
+
+```bash
+dotnet publish Xgpst_ConsoleApp/Xgpst_ConsoleApp.csproj \
+  -c Release \
+  -r win-x64 \
+  --self-contained false \
+  /p:PublishSingleFile=true \
+  --output bin/Release/net6.0/publish/win-x64
+```
 ---
 
 ## 🙌 Acknowledgments & Contributions
