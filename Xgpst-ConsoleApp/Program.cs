@@ -13,8 +13,10 @@ namespace Xgpst_ConsoleApp
 		{
 			AppDomain.CurrentDomain.ProcessExit += (_, _) => XgpSaveTools.Extensions.IoExtensions.ClearTempFolders();
 			manager = new SaveManager();
-			Console.WriteLine("Xbox Game Pass save extractor");
 			Console.WriteLine(new string('=', 40));
+			Console.WriteLine("Xbox Game Pass Save Tools");
+			Console.WriteLine(new string('=', 40));
+			Console.WriteLine("");
 			List<GameInfo> gameList;
 
 			try

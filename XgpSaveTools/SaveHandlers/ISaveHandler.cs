@@ -12,8 +12,6 @@ namespace XgpSaveTools.SaveHandlers
 	public interface ISaveHandler
 	{
 		bool CanHandle(string handlerName);
-		IEnumerable<SaveFile> GetSaveEntries(
-			List<ContainerMetaFile> containers,
-			HandlerArgs? handlerArgs);
+		IEnumerable<SaveFile> GetSaveEntries(List<ContainerMetaFile> containers, HandlerArgs? handlerArgs);
 	}
 }
