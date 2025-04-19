@@ -144,7 +144,7 @@ Currently, no binary release packages are available. You must clone the reposito
 ## 🙌 Acknowledgments & Contributions
 
 - Port inspired by [Z1ni’s Python XGP-save-extractor](https://github.com/Z1ni/XGP-save-extractor).
-- Special thanks to **@snoozbuster** for initial format reverse-engineering.
+- [@snoozbuster](https://github.com/snoozbuster) for reverse engineering container format at https://github.com/goatfungus/NMSSaveEditor/issues/306.
 - Contributions and pull requests are very welcome. Please submit issues or pull requests with your game’s package name, handler type, and relevant samples.
 
 ---
