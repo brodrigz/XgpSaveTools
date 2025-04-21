@@ -1,4 +1,5 @@
 ﻿using XgpSaveTools.SaveHandlers.Impl;
+using XgpSaveTools.SaveHandlers.Impl.Generic;
 
 namespace XgpSaveTools.SaveHandlers
 {
@@ -7,12 +8,13 @@ namespace XgpSaveTools.SaveHandlers
 	{
 		private static readonly List<ISaveHandler> Handlers = new()
 		{
+			new GenericHandler(),
 			new OneContainerOneFileHandler(),
 			new OneContainerManyFilesHandler(),
 			new OneContainerManyFilesFolderHandler(),
 			new ControlHandler(),
 			new StarfieldHandler(),
-        };
+		};
 
 		public static ISaveHandler Get(string name)
 		{
