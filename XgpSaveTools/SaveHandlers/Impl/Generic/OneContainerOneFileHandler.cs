@@ -10,8 +10,8 @@ namespace XgpSaveTools.SaveHandlers.Impl
 {
 	public class OneContainerOneFileHandler : ISaveHandler
 	{
-		public bool CanHandle(string handlerName) => handlerName == "1c1f";
-		public IEnumerable<SaveFile> GetSaveEntries(List<ContainerMetaFile> containers, HandlerArgs? args)
+		public virtual bool CanHandle(string handlerName) => handlerName == "1c1f";
+		public virtual IEnumerable<SaveFile> GetSaveEntries(List<ContainerMetaFile> containers, HandlerArgs? args)
 		{
 			foreach (var c in containers)
 			{

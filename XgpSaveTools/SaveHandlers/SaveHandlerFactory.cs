@@ -14,6 +14,8 @@ namespace XgpSaveTools.SaveHandlers
 			new OneContainerManyFilesFolderHandler(),
 			new ControlHandler(),
 			new StarfieldHandler(),
+			new ScornHandler(),
+			new Persona3ReloadHandler()
 		};
 
 		public static ISaveHandler Get(string name)
