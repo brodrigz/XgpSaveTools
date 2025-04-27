@@ -80,7 +80,7 @@ If a game requires a new format handler, you must implement the `ISaveHandler` i
 
 ## ⚙️ Build & Installation
 
-You can grab the latest pre-built executable release at https://github.com/brodrigz/XgpSaveTools/releases
+You can grab the latest pre-built executable release at https://github.com/brodrigz/XgpSaveTools/releases/latest
 
 ### 🔨 Build from Source
 
