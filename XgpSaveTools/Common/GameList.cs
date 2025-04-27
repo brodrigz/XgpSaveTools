@@ -32,10 +32,27 @@ namespace XgpSaveTools.Common
 			return wrapper?.Games ?? throw new Exception($"Failed to read {GameListPath}");
 		}
 
-		public static IEnumerable<GameInfo> DiscoverGames(IEnumerable<GameInfo>? gameList = null)
+		public static IEnumerable<GameInfo> DiscoverUserGames(IEnumerable<GameInfo>? supportedGameList = null)
 		{
-			var games = gameList ?? ReadGameList();
-			return games.Where(x => Directory.Exists(Path.Combine(PackagesRoot, x.Package)));
+			var games = supportedGameList ?? ReadGameList();
+
+			var root = new DirectoryInfo(PackagesRoot);
+			foreach (var wgsDir in root.GetDirectories("wgs", SearchOption.AllDirectories))
+			{
+				string? packageName = wgsDir?.Parent?.Parent?.Name;
+				if (string.IsNullOrEmpty(packageName)) continue;
+
+				//supported
+				var supported = games.FirstOrDefault(x => x.Package == packageName);
+				if (supported != null)
+				{
+					yield return supported;
+					continue;
+				}
+				//unsupported
+				yield return new UnsupportedGameInfo(packageName, packageName, "generic", null);
+			}
+			//return games.Where(x => Directory.Exists(Path.Combine(PackagesRoot, x.Package))); //doesnt look for anything outside supported game list
 		}
 	}
 }

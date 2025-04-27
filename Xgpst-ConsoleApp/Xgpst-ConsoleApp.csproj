@@ -9,6 +9,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="Program.cs.old" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\XgpSaveTools\XgpSaveTools.csproj" />
   </ItemGroup>
 

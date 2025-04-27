@@ -14,50 +14,31 @@ using static XgpSaveTools.Common.GameList;
 using XgpSaveTools.BinaryStructures;
 using static XgpSaveTools.Extensions.IoExtensions;
 using XgpSaveTools.Extensions;
+using System.Runtime.Versioning;
 
 namespace XgpSaveTools
 {
-	// Main extractor class
-	public class SaveManager
+	public class XboxContainerRepository
 	{
 		public string? OverrideWgsPath { get; set; }
 
-		private List<UserContainerFolder> _FindUserContainers(string baseDir)
-		{
-			if (!Directory.Exists(baseDir)) return new();
-			var dirs = Directory.GetDirectories(baseDir)
-				.Where(d => !Path.GetFileName(d).Equals("t", StringComparison.OrdinalIgnoreCase))
-				.Where(d => !Path.GetFileName(d).Contains("backup", StringComparison.OrdinalIgnoreCase))
-				.Where(d => Path.GetFileName(d).Split('_').Length == 2);
-			var result = new List<UserContainerFolder>();
-			foreach (var d in dirs)
-			{
-				var parts = Path.GetFileName(d).Split('_', 2);
-				var uid = Convert.ToUInt64(parts[0], 16);
-				result.Add(new(parts[0], d));
-			}
-			return result;
-		}
+
 		public List<UserContainerFolder> FindUserContainers(string pkg)
 		{
 			var baseDir = Path.Combine(PackagesRoot, pkg, "SystemAppData", "wgs");
-			return _FindUserContainers(OverrideWgsPath ?? baseDir);
+			return InnerFindUserContainers(OverrideWgsPath ?? baseDir);
 		}
 
 		public GameInfo? DiscoverGameInfoFromPath(string path)
 		{
-			var userContainers = _FindUserContainers(path);
-			if (!userContainers.Any())
-			{
-				Console.WriteLine("No user container found, directory is not on wgs format");
-				return null;
-			}
+			var userContainers = FindUserContainers(path);
+			if (!userContainers.Any()) throw new Exception("No user container found, directory is not on wgs format");
 			// read first to discover package
 			var result = ReadUserContainers(userContainers.FirstOrDefault().Dir);
 			var found = ReadGameList().FirstOrDefault(x => x.Package == result.StorePkg);
 			if (found == null)
 			{
-				Console.WriteLine($"Package {result.StorePkg} is not supported, add to games.json");
+				return new UnsupportedGameInfo(result.StorePkg, result.StorePkg, "generic", null);
 			}
 			return found;
 		}
@@ -96,6 +77,88 @@ namespace XgpSaveTools
 			}
 
 			return (storePkg, containers);
+		}
+
+		public void RemoveEntry(Guid fileId, GameInfo info, UserContainerFolder userContainer) => throw new NotImplementedException();
+
+		public string BackupFolder(GameInfo gameInfo, UserContainerFolder userContainer) => CopyDirectory(userContainer.Dir, Path.Combine(BackupOutput, gameInfo.Name, userContainer.UserTag));
+		public IEnumerable<SaveFile> GetSaveEntries(GameInfo info, UserContainerFolder userContainer)
+		{
+			var (storePkg, conts) = ReadUserContainers(userContainer.Dir);
+			var handler = SaveHandlerFactory.Get(info.Handler);
+			return handler.GetSaveEntries(conts, info.HandlerArgs);
+		}
+
+		public void ReplaceEntries(GameInfo info, UserContainerFolder userContainer, IEnumerable<EntryReplacement> replacements)
+		{
+			Console.WriteLine("");
+			Console.WriteLine($"{replacements.Count()} entries will be replaced");
+			Console.WriteLine("");
+			Console.WriteLine($"Backup created at {BackupFolder(info, userContainer)}");
+			Console.WriteLine("");
+			foreach (var rep in replacements)
+			{
+				Console.WriteLine($"Replacing {rep.TargetFile.Path}");
+				File.Copy(rep.ReplacementFile.FullName, rep.TargetFile.Path, overwrite: true);
+				Console.WriteLine("");
+			}
+			Console.WriteLine("All replacements completed.");
+		}
+
+		public int Extract(GameInfo info, UserContainerFolder userContainer)
+		{
+			int result = 0;
+			Console.WriteLine($"- {info.Name}");
+			try
+			{
+				var entries = GetSaveEntries(info, userContainer).ToList();
+				if (!entries.Any())
+				{
+					Console.WriteLine($"No entries found for {userContainer.UserTag}");
+					return -1;
+				}
+
+				string zipName = GetZipName(info, userContainer);
+				using var zip = ZipFile.Open(zipName, ZipArchiveMode.Create);
+
+				Console.WriteLine($"Saving files for user {userContainer.UserTag}:");
+				foreach (var saveEntry in entries)
+				{
+					Console.WriteLine($"  - {saveEntry.OutputName}");
+					zip.CreateEntryFromFile(saveEntry.ContainerEntry.Path, saveEntry.OutputName, CompressionLevel.Optimal);
+					result++;
+				}
+
+				Console.WriteLine($"Save files written to \"{zipName}\"\n");
+				return result;
+			}
+			catch
+			{
+				Console.WriteLine("Extraction Failed");
+				throw;
+			}
+			finally
+			{
+				IoExtensions.ClearTempFolders();
+			}
+		}
+
+		#region PRIVATE
+		private List<UserContainerFolder> InnerFindUserContainers(string baseDir)
+		{
+			if (!Directory.Exists(baseDir)) return new();
+			var dirs = Directory.GetDirectories(baseDir)
+				.Where(d => !Path.GetFileName(d).Equals("t", StringComparison.OrdinalIgnoreCase))
+				.Where(d => !Path.GetFileName(d).Contains("backup", StringComparison.OrdinalIgnoreCase))
+				.Where(d => Path.GetFileName(d).Split('_').Length == 2);
+			var result = new List<UserContainerFolder>();
+			foreach (var d in dirs)
+			{
+				var parts = Path.GetFileName(d).Split('_', 2);
+				var uid = Convert.ToUInt64(parts[0], 16);
+				result.Add(new(parts[0], d));
+			}
+			return result;
 		}
 
 		private List<ContainerEntry> ReadContainerBlob(string containerFolder, int containerNum)
@@ -142,6 +205,13 @@ namespace XgpSaveTools
 			return results;
 		}
 
+		private string GetZipName(GameInfo gameInfo, UserContainerFolder userContainer)
+		{
+			var formatted = gameInfo.Name.Replace(' ', '_').Replace(':', '_').Replace("'", "").Replace("!", "").ToLower();
+			var timestamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
+			return $"{formatted}_{userContainer.UserTag}_{timestamp}.zip";
+		}
+
 		public void AddEntry(FileInfo file, GameInfo info, UserContainerFolder userContainer)
 		{
 			throw new NotImplementedException();
@@ -156,77 +226,7 @@ namespace XgpSaveTools
 				ContainerNum = (byte)(conts.Max(x => x.Number) + 1)
 			};
 		}
-
-		public void RemoveEntry(Guid fileId, GameInfo info, UserContainerFolder userContainer) => throw new NotImplementedException();
-
-		public string BackupFolder(GameInfo gameInfo, UserContainerFolder userContainer) => CopyDirectory(userContainer.Dir, Path.Combine(BackupOutput, gameInfo.Name, userContainer.UserTag));
-		private string GetZipName(GameInfo gameInfo, UserContainerFolder userContainer)
-		{
-			var formatted = gameInfo.Name.Replace(' ', '_').Replace(':', '_').Replace("'", "").Replace("!", "").ToLower();
-			var timestamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
-			return $"{formatted}_{userContainer.UserTag}_{timestamp}.zip";
-		}
-
-		public IEnumerable<SaveFile> GetSaveEntries(GameInfo info, UserContainerFolder userContainer)
-		{
-			var (storePkg, conts) = ReadUserContainers(userContainer.Dir);
-			var handler = SaveHandlerFactory.Get(info.Handler);
-			return handler.GetSaveEntries(conts, info.HandlerArgs);
-		}
-
-		public void ReplaceEntries(GameInfo info, UserContainerFolder userContainer, IEnumerable<EntryReplacement> replacements)
-		{
-			Console.WriteLine("");
-			Console.WriteLine($"{replacements.Count()} entries will be replaced");
-			Console.WriteLine("");
-			Console.WriteLine($"Backup created at {BackupFolder(info, userContainer)}");
-			Console.WriteLine("");
-			foreach (var rep in replacements)
-			{
-				Console.WriteLine($"Replacing {rep.TargetFile.Path}");
-				File.Copy(rep.ReplacementFile.FullName, rep.TargetFile.Path, overwrite: true);
-				Console.WriteLine("");
-			}
-			Console.WriteLine("");
-			Console.WriteLine("All replacements completed.");
-		}
-
-		public void Extract(GameInfo info, UserContainerFolder userContainer)
-		{
-			Console.WriteLine($"- {info.Name}");
-			try
-			{
-				var entries = GetSaveEntries(info, userContainer).ToList();
-				if (!entries.Any())
-				{
-					Console.WriteLine($"No entries found for {userContainer.UserTag}");
-					return;
-				}
-
-				string zipName = GetZipName(info, userContainer);
-				using var zip = ZipFile.Open(zipName, ZipArchiveMode.Create);
-
-				Console.WriteLine($"Saving files for user {userContainer.UserTag}:");
-				foreach (var saveEntry in entries)
-				{
-					Console.WriteLine($"  - {saveEntry.OutputName}");
-					zip.CreateEntryFromFile(saveEntry.ContainerEntry.Path, saveEntry.OutputName, CompressionLevel.Optimal);
-				}
-
-				Console.WriteLine($"Save files written to \"{zipName}\"\n");
-			}
-			catch (Exception ex)
-			{
-				Console.WriteLine("Failed to extract saves:");
-				Console.WriteLine(ex);
-				Console.WriteLine();
-			}
-			finally
-			{
-				IoExtensions.ClearTempFolders();
-			}
-		}
-
+		#endregion
 
 	}
 
