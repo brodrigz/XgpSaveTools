@@ -20,14 +20,6 @@
       }
     },
     {
-      "name": "Lords of the Fallen",
-      "package": "CIGamesS.A.LordsoftheFallen-PC_9609msxhzdsvj",
-      "handler": "1c1f",
-      "handler_args": {
-        "suffix": ".sav"
-      }
-    },
-    {
       "name": "Celeste",
       "package": "MattMakesGamesInc.Celeste_79daxvg0dq3v6",
       "handler": "1c1f"
@@ -56,6 +48,14 @@
     {
       "name": "Hi-Fi RUSH",
       "package": "BethesdaSoftworks.Hibiki_3275kfvn8vcwc",
+      "handler": "1c1f",
+      "handler_args": {
+        "suffix": ".sav"
+      }
+    },
+    {
+      "name": "Lords of the Fallen",
+      "package": "CIGamesS.A.LordsoftheFallen-PC_9609msxhzdsvj",
       "handler": "1c1f",
       "handler_args": {
         "suffix": ".sav"
@@ -256,6 +256,60 @@
       "name": "Cricket 24",
       "package": "BigbenInteractiveSA.Cricket24Win10_tqjv3vrxr8ppw",
       "handler": "cricket-24"
+    },
+    // Oblivion Remastered
+    {
+      "name": "Oblivion Remastered",
+      "package": "BethesdaSoftworks.ProjectAltar_3275kfvn8vcwc",
+      "handler": "1c1f",
+      "handler_args": {
+        "suffix": ".sav"
+      }
+    },
+    // Clair Obscur: Expedition 33
+    {
+      "name": "Clair Obscur: Expedition 33",
+      "package": "KeplerInteractive.Expedition33_ymj30pw7xe604",
+      "handler": "coral-island"
+    },
+    // All bellow are untested
+    {
+      "name": "The Lamplighters League",
+      "package": "ParadoxInteractive.ProjectWiseguy-PC_zfnrdv2de78ny",
+      "handler": "1cnf-folder"
+    },
+    {
+      "name": "Yakuza Kiwami",
+      "package": "SEGAofAmericaInc.YakuzaKiwamiPC_s751p9cej88mt",
+      "handler": "1c1f"
+    },
+    {
+      "name": "Quantum Break",
+      "package": "Microsoft.QuantumBreak_8wekyb3d8bbwe",
+      "handler": "1cnf-folder"
+    },
+    {
+      "name": "Galacticare",
+      "package": "TheCultGamesLtd.Galacticare_vnassb3anythc",
+      "handler": "generic"
+    },
+    {
+      "name": "Persona 3 Reload",
+      "package": "SEGAofAmericaInc.L0cb6b3aea_s751p9cej88mt",
+      "handler": "persona-3-reload"
+    },
+    {
+      "name": "Scorn",
+      "package": "KeplerInteractive.1439274AB3A46_ymj30pw7xe604",
+      "handler": "scorn"
+    },
+    {
+      "name": "SnowRunner",
+      "package": "FocusHomeInteractiveSA.SnowRunnerWindows10_4hny5m903y3g0",
+      "handler": "1cnf",
+      "handler_args": {
+        "suffix": ".cfg"
+      }
     }
   ]
 }
