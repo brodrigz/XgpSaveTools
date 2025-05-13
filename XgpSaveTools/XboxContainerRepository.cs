@@ -1,4 +1,4 @@
-﻿using Newtonsoft.Json;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Newtonsoft.Json.Serialization;
 using System;
@@ -70,7 +70,7 @@ namespace XgpSaveTools
 				var files = ReadContainerBlob(containerFolder, slot.ContainerNum);
 
 				containers.Add(new ContainerMetaFile(
-					slot.Name1,
+					SanitizeName(slot.Name1),
 					slot.ContainerNum,
 				 files
 				));
@@ -81,7 +81,7 @@ namespace XgpSaveTools
 
 		public void RemoveEntry(Guid fileId, GameInfo info, UserContainerFolder userContainer) => throw new NotImplementedException();
 
-		public string BackupFolder(GameInfo gameInfo, UserContainerFolder userContainer) => CopyDirectory(userContainer.Dir, Path.Combine(BackupOutput, gameInfo.Name, userContainer.UserTag));
+		public string BackupFolder(GameInfo gameInfo, UserContainerFolder userContainer) => CopyDirectory(userContainer.Dir, Path.Combine(BackupOutput, SanitizeName(gameInfo.Name), userContainer.UserTag));
 		public IEnumerable<SaveFile> GetSaveEntries(GameInfo info, UserContainerFolder userContainer)
 		{
 			var (storePkg, conts) = ReadUserContainers(userContainer.Dir);
@@ -144,6 +144,45 @@ namespace XgpSaveTools
 		}
 
 		#region PRIVATE
+		private static string SanitizeName(string name)
+		{
+			if (string.IsNullOrEmpty(name))
+				return name ?? string.Empty;
+
+			var sb = new StringBuilder(name);
+
+			// Replace invalid file name characters defined by the OS
+			foreach (char invalidChar in Path.GetInvalidFileNameChars())
+			{
+				sb.Replace(invalidChar, '_');
+			}
+
+			// Replace additional specific characters
+			sb.Replace(' ', '_');
+			sb.Replace('\'', '_');
+			sb.Replace('!', '_');
+			// Add any other characters you want to explicitly sanitize
+
+			string sanitized = sb.ToString();
+
+			// Consolidate multiple underscores into one
+			while (sanitized.Contains("__"))
+			{
+				sanitized = sanitized.Replace("__", "_");
+			}
+			
+			// Optional: Remove leading/trailing underscores.
+			// Be cautious if underscores are meaningful at the start/end of original names.
+			// if (sanitized.Length > 0 && sanitized != "_") // Avoid turning "_" into ""
+			// {
+			//    sanitized = sanitized.Trim('_');
+			//    if (string.IsNullOrEmpty(sanitized) && name.Any(c => c == '_')) sanitized = "_"; // Preserve if original was all underscores
+			// }
+
+
+			return sanitized;
+		}
+
 		private List<UserContainerFolder> InnerFindUserContainers(string baseDir)
 		{
 			if (!Directory.Exists(baseDir)) return new();
@@ -199,7 +238,7 @@ namespace XgpSaveTools
 					continue;
 				}
 
-				results.Add(new ContainerEntry(fileName, chosen));
+				results.Add(new ContainerEntry(SanitizeName(fileName), chosen));
 			}
 
 			return results;
@@ -207,7 +246,7 @@ namespace XgpSaveTools
 
 		private string GetZipName(GameInfo gameInfo, UserContainerFolder userContainer)
 		{
-			var formatted = gameInfo.Name.Replace(' ', '_').Replace(':', '_').Replace("'", "").Replace("!", "").ToLower();
+			var formatted = SanitizeName(gameInfo.Name).ToLower();
 			var timestamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
 			return $"{formatted}_{userContainer.UserTag}_{timestamp}.zip";
 		}
