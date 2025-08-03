@@ -310,6 +310,43 @@
       "handler_args": {
         "suffix": ".cfg"
       }
+    },
+    {
+      "name": "The Alters",
+      "package": "4063811bitstudios.TheAlters_gwy9gn5q9j1y6",
+      "handler": "1c1f",
+      "handler_args": {
+        "suffix": ".sav"
+      }
+    },
+    {
+      "name": "Doom Eternal",
+      "package": "BethesdaSoftworks.DOOMEternal-PC_3275kfvn8vcwc",
+      "handler": "1cnf-folder"
+    },
+    {
+      "name": "Rematch",
+      "package": "SLOCLAP.ProjectRuntime_cse8z5zpmcvkt",
+      "handler": "1c1f",
+      "handler_args": {
+        "suffix": ".sav"
+      }
+    },
+    {
+      "name": "Mechwarrior 5 Clans",
+      "package": "PiranhaGamesInc.MechWarrior5Clans_skpx0jhaqqap2",
+      "handler": "1c1f",
+      "handler_args": {
+        "suffix": ".sav"
+      }
+    },
+    {
+      "name": "Sea of Stars",
+      "package": "SabotageStudio.SeaofStars_p3aneehax6csy",
+      "handler": "1cnf",
+      "handler_args": {
+        "suffix": ".sos"
+      }
     }
   ]
 }
