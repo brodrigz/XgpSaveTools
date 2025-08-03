@@ -151,13 +151,22 @@ namespace Xgpst_ConsoleApp
 			SelectOperation();
 		}
 
+		private void OpenDirectory(string path)
+		{
+			Process.Start(new ProcessStartInfo
+			{
+				FileName = path,
+				UseShellExecute = true
+			});
+		}
+
 		private void SelectOperation()
 		{
 			int result = -1;
 			if (_selectedGame == null || _selectedContainer == null) return;
 			Newline();
 			var choice = _helper.SelectOption(
-				new[] { "Extract Files", "Replace Entries" },
+				new[] { "Extract Files", "Replace/Delete Entries", "Open Directory" },
 				"Select operation:",
 				item => item).Key;
 			Newline();
@@ -172,6 +181,9 @@ namespace Xgpst_ConsoleApp
 					result = HandleReplacementMode();
 					if (result > 0) _helper.WriteSuccess($"{result} entries replaced");
 					_helper.WaitInput();
+					break;
+				case 2:
+					OpenDirectory(_selectedContainer.Dir);
 					break;
 				case -1: // Back
 					return;
