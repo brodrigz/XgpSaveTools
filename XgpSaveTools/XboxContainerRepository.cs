@@ -38,7 +38,7 @@ namespace XgpSaveTools
 			var found = ReadGameList().FirstOrDefault(x => x.Package == result.StorePkg);
 			if (found == null)
 			{
-				return new UnsupportedGameInfo(result.StorePkg, result.StorePkg, "generic", null);
+				return new UnregisteredGameInfo(result.StorePkg, result.StorePkg, "generic", null);
 			}
 			return found;
 		}

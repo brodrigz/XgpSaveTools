@@ -20,8 +20,8 @@ namespace Xgpst_ConsoleApp
 		private UserContainerFolder? _selectedContainer;
 		private ConsoleHelper _helper;
 
-		private IEnumerable<UnsupportedGameInfo> DiscoveredUnsupportedGame => _discoveredGames.OfType<UnsupportedGameInfo>();
-		private IEnumerable<GameInfo> DiscoveredSupportedGames => _discoveredGames.Where(x => x is not UnsupportedGameInfo);
+		private IEnumerable<UnregisteredGameInfo> DiscoveredUnregisteredGame => _discoveredGames.OfType<UnregisteredGameInfo>();
+		private IEnumerable<GameInfo> DiscoveredSupportedGames => _discoveredGames.Where(x => x is not UnregisteredGameInfo);
 		public ConsoleApp()
 		{
 			AppDomain.CurrentDomain.ProcessExit += (_, _) => ClearTempFolders();
@@ -81,29 +81,36 @@ namespace Xgpst_ConsoleApp
 
 		#region Handlers
 		private void ScanGamesMode() => _ScanGamesMode();
-		private void _ScanGamesMode(bool showUnsupported = false)
+		private void _ScanGamesMode(bool showUnregistered = false)
 		{
 			if (!_discoveredGames.Any()) throw new Exception("No games found");
 			Newline();
 
 			var options = DiscoveredSupportedGames;
-			GameInfo showUnsupportedOpt = new($"Show Unsupported ({DiscoveredUnsupportedGame.Count()})", null, null, null);
-			if (showUnsupported)
+			GameInfo showUnregisteredOpt = new($"Show Unregistered ({DiscoveredUnregisteredGame.Count()})", null, null, null);
+			if (showUnregistered)
 			{
 				options = _discoveredGames;
 			}
-			else if (DiscoveredUnsupportedGame.Any())
+			else if (DiscoveredUnregisteredGame.Any())
 			{
-				options = options.Append(showUnsupportedOpt).ToList();
+				options = options.Append(showUnregisteredOpt).ToList();
+			}
+
+			var orderedList = options.OrderBy(x => x is UnregisteredGameInfo).ThenBy(x => x.Name);
+			string getLabel(GameInfo gameInfo)
+			{
+				return (gameInfo is UnregisteredGameInfo) ?
+					$"[Unregistered] {gameInfo.Name}" : gameInfo.Name;
 			}
 
 			var selection = _helper.SelectOption(
-				options.ToList(),
+				orderedList.ToList(),
 				"Select a game:",
-				g => g.Name);
+				getLabel);
 
 			if (selection.Value == null) return;
-			if (selection.Value == showUnsupportedOpt)
+			if (selection.Value == showUnregisteredOpt)
 			{
 				Newline();
 				_helper.WriteWarning("Unregistered games will use generic handler, and output files will have no extension, consider creating entry on games.json");
@@ -123,7 +130,7 @@ namespace Xgpst_ConsoleApp
 			_manager.OverrideWgsPath = dir.FullName;
 			Newline();
 			_selectedGame = _manager.DiscoverGameInfoFromPath(dir.FullName);
-			if (_selectedGame is UnsupportedGameInfo) _helper.WriteWarning($"Package '{_selectedGame.Name}' is not registered on games.json, generic handler will be used");
+			if (_selectedGame is UnregisteredGameInfo) _helper.WriteWarning($"Package '{_selectedGame.Name}' is not registered on games.json, generic handler will be used");
 			SelectUserContainer();
 		}
 

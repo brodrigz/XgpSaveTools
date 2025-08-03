@@ -49,8 +49,8 @@ namespace XgpSaveTools.Common
 					yield return supported;
 					continue;
 				}
-				//unsupported
-				yield return new UnsupportedGameInfo(packageName, packageName, "generic", null);
+				//Unregistered
+				yield return new UnregisteredGameInfo(packageName, packageName, "generic", null);
 			}
 			//return games.Where(x => Directory.Exists(Path.Combine(PackagesRoot, x.Package))); //doesnt look for anything outside supported game list
 		}
