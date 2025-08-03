@@ -81,7 +81,9 @@ namespace XgpSaveTools
 
 		public void RemoveEntry(Guid fileId, GameInfo info, UserContainerFolder userContainer) => throw new NotImplementedException();
 
-		public string BackupFolder(GameInfo gameInfo, UserContainerFolder userContainer) => CopyDirectory(userContainer.Dir, Path.Combine(BackupOutput, gameInfo.Name, userContainer.UserTag));
+		public string BackupFolder(GameInfo gameInfo, UserContainerFolder userContainer) => CopyDirectory(userContainer.Dir,
+			Path.Combine(BackupOutput, DateTime.Now.ToString("yyyy.MM.dd"), gameInfo.Name, userContainer.UserTag));
+
 		public IEnumerable<SaveFile> GetSaveEntries(GameInfo info, UserContainerFolder userContainer)
 		{
 			var (storePkg, conts) = ReadUserContainers(userContainer.Dir);
