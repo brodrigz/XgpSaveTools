@@ -114,7 +114,7 @@ namespace Xgpst_ConsoleApp
 			if (selection.Value == showUnregisteredOpt)
 			{
 				Newline();
-				_helper.WriteWarning("Unregistered games will use generic handler, and output files will have no extension, consider creating entry on games.json");
+				_helper.WriteWarning("Unregistered games will use generic handler, and output files might have no extension, consider creating entry on games.json");
 				_ScanGamesMode(true);
 				return;
 			}

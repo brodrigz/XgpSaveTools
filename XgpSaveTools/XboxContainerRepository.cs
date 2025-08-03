@@ -92,10 +92,29 @@ namespace XgpSaveTools
 			return handler.GetSaveEntries(conts, info.HandlerArgs);
 		}
 
-		private void DeleteDir(ContainerEntry entry)
+		private bool IsNumeric(string s) => double.TryParse(s, out _);
+		private bool ExtensionIsNumeric(string extensionStr)
+		{
+			if (string.IsNullOrEmpty(extensionStr)) return false;
+			return IsNumeric(extensionStr.Replace(".", ""));
+		}
+
+		private void HandleEntryDeletion(ContainerEntry entry)
 		{
 			var file = new FileInfo(entry.Path);
-			if (file.Exists) file.Directory.Delete(true);
+			var dir = file.Directory;
+			var otherFiles = dir.EnumerateFiles().Where(f => f.FullName != file.FullName).ToArray();
+
+			if (otherFiles.Length == 1 && ExtensionIsNumeric(otherFiles[0].Extension)) // 1cn1f delete entire folder
+			{
+				Console.WriteLine($"Removing {dir.FullName}");
+				dir.Delete(true);
+			}
+			else // delete only entry file
+			{
+				Console.WriteLine($"Removing {file.FullName}");
+				file.Delete();
+			}
 		}
 
 		public void ReplaceEntries(GameInfo info, UserContainerFolder userContainer, IEnumerable<EntryReplacement> replacements)
@@ -109,8 +128,7 @@ namespace XgpSaveTools
 			Console.WriteLine("");
 			foreach (var rep in replacements.Where(x => x.ReplacementFile == null))
 			{
-				Console.WriteLine($"Removing {rep.TargetFile.Path}");
-				DeleteDir(rep.TargetFile);
+				HandleEntryDeletion(rep.TargetFile);
 				Console.WriteLine("");
 			}
 			foreach (var rep in replacements.Where(x => x.ReplacementFile != null))
@@ -210,7 +228,7 @@ namespace XgpSaveTools
 						? path2
 						: null!;
 
-				if (chosen == null)
+				if (chosen == null || !File.Exists(chosen))
 				{
 					Console.WriteLine($"!! Missing file blob for {fileName}");
 					continue;
