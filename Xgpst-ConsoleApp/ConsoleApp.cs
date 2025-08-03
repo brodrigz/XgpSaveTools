@@ -9,6 +9,7 @@ using XgpSaveTools.Records;
 using static XgpSaveTools.Extensions.IoExtensions;
 using static XgpSaveTools.Common.GameList;
 using System.ComponentModel;
+using System.Diagnostics;
 
 namespace Xgpst_ConsoleApp
 {
@@ -178,8 +179,14 @@ namespace Xgpst_ConsoleApp
 					_helper.WaitInput();
 					break;
 				case 1:
-					result = HandleReplacementMode();
-					if (result > 0) _helper.WriteSuccess($"{result} entries replaced");
+					//result = HandleEditMode();
+					var editResult = HandleEditMode();
+					if (editResult != null)
+					{
+						if (editResult.Removed > 0) _helper.WriteSuccess($"{editResult.Removed} entries removed");
+						Newline();
+						if (editResult.Replaced > 0) _helper.WriteSuccess($"{editResult.Replaced} entries replaced");
+					}
 					_helper.WaitInput();
 					break;
 				case 2:
@@ -192,9 +199,11 @@ namespace Xgpst_ConsoleApp
 		#endregion
 
 
-		private int HandleReplacementMode()
+		public record EditOperationResult(int Replaced, int Removed);
+
+		private EditOperationResult? HandleEditMode()
 		{
-			if (_selectedGame == null || _selectedContainer == null) return -1;
+			if (_selectedGame == null || _selectedContainer == null) return null;
 			Newline();
 
 			var entries = _manager.GetSaveEntries(_selectedGame, _selectedContainer).ToList();
@@ -203,37 +212,55 @@ namespace Xgpst_ConsoleApp
 			var replacements = new Dictionary<int, EntryReplacement>();
 			while (true)
 			{
+
 				var finishOpt = new SaveFile("Finish", ContainerEntry: null);
 				var selection = _helper.SelectOption(
 						 entries.Append(finishOpt).ToList(),
-					"Select an entry to replace (or 'Finish' to continue):",
+					"Select an entry (or 'Finish' to continue):",
 					e => GetReplacementOptionLabel(e, replacements));
 
 				if (selection.Value == finishOpt) break; // finished selection
-				if (selection.Key == -1) return -1;
-				replacements[selection.Key] = CreateEntryReplacement(selection.Value);
+				if (selection.Key == -1) return null;
+				var result = CreateEntryReplacement(selection.Value!);
 				Newline();
+				if (result == null) continue;
+				replacements[selection.Key] = result;
 			}
 
 			if (replacements.Any())
 			{
 				_manager.ReplaceEntries(_selectedGame, _selectedContainer, replacements.Values);
-				return replacements.Count;
+				return new EditOperationResult(replacements.Where(x => x.Value?.ReplacementFile != null).Count(), replacements.Where(x => x.Value?.ReplacementFile == null).Count());
 			}
-			else return -1;
+			else return null;
 		}
 
 		private string GetReplacementOptionLabel(SaveFile entry, Dictionary<int, EntryReplacement> dict)
 		{
 			if (entry.ContainerEntry == null) return "Finish";
-			bool existing = dict.Values.Select(x => x.TargetFile).Contains(entry.ContainerEntry);
-			return $"{entry.OutputName} ({entry.GetReadableFileSize()}) {(existing ? "[R]" : "")}";
+			string lbl = "";
+			var existingEntry = dict.Values.FirstOrDefault(x => x.TargetFile == entry.ContainerEntry);
+			if (existingEntry != null)
+			{
+				lbl = (existingEntry.ReplacementFile == null ? "[D]" : "[R]");
+			}
+			return $"{entry.OutputName} ({entry.GetReadableFileSize()}) {lbl}";
 		}
 
-		private EntryReplacement CreateEntryReplacement(SaveFile entry)
+		private EntryReplacement? CreateEntryReplacement(SaveFile entry)
 		{
-			var file = _helper.ReadValidFile("Enter replacement file path:");
-			return new EntryReplacement(entry.ContainerEntry, file);
+			Newline();
+			var option = _helper.SelectOption(new[] { "Replace", "Delete" });
+			switch (option.Key)
+			{
+				case 0:
+					var file = _helper.ReadValidFile("Enter replacement file path:");
+					return new EntryReplacement(entry.ContainerEntry, file);
+				case 1:
+					return new EntryReplacement(entry.ContainerEntry, null);
+				default:
+					return null;
+			}
 		}
 
 		private void HandleException(Exception ex)

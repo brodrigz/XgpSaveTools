@@ -15,6 +15,7 @@ using XgpSaveTools.BinaryStructures;
 using static XgpSaveTools.Extensions.IoExtensions;
 using XgpSaveTools.Extensions;
 using System.Runtime.Versioning;
+using System.IO;
 
 namespace XgpSaveTools
 {
@@ -91,20 +92,34 @@ namespace XgpSaveTools
 			return handler.GetSaveEntries(conts, info.HandlerArgs);
 		}
 
+		private void DeleteDir(ContainerEntry entry)
+		{
+			var file = new FileInfo(entry.Path);
+			if (file.Exists) file.Directory.Delete(true);
+		}
+
 		public void ReplaceEntries(GameInfo info, UserContainerFolder userContainer, IEnumerable<EntryReplacement> replacements)
 		{
-			Console.WriteLine("");
-			Console.WriteLine($"{replacements.Count()} entries will be replaced");
+			//Console.WriteLine("");
+			//Console.WriteLine($"{replacements.Where(x => x.ReplacementFile != null).Count()} entries will be replaced");
+			//Console.WriteLine("");
+			//Console.WriteLine($"{replacements.Where(x => x.ReplacementFile == null).Count()} entries will be removed");
 			Console.WriteLine("");
 			Console.WriteLine($"Backup created at {BackupFolder(info, userContainer)}");
 			Console.WriteLine("");
-			foreach (var rep in replacements)
+			foreach (var rep in replacements.Where(x => x.ReplacementFile == null))
+			{
+				Console.WriteLine($"Removing {rep.TargetFile.Path}");
+				DeleteDir(rep.TargetFile);
+				Console.WriteLine("");
+			}
+			foreach (var rep in replacements.Where(x => x.ReplacementFile != null))
 			{
 				Console.WriteLine($"Replacing {rep.TargetFile.Path}");
 				File.Copy(rep.ReplacementFile.FullName, rep.TargetFile.Path, overwrite: true);
 				Console.WriteLine("");
 			}
-			Console.WriteLine("All replacements completed.");
+			Console.WriteLine("Operation completed.");
 		}
 
 		public int Extract(GameInfo info, UserContainerFolder userContainer)

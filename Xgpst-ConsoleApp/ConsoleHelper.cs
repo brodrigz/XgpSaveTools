@@ -87,7 +87,7 @@ namespace Xgpst_ConsoleApp
 		{
 			var originalColor = Console.ForegroundColor;
 			Console.ForegroundColor = ConsoleColor.Green;
-			Console.WriteLine($"[✓] {message}");
+			Console.WriteLine($"[OK] {message}");
 			Console.ForegroundColor = originalColor;
 		}
 
