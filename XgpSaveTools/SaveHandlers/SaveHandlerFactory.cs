@@ -6,6 +6,7 @@ namespace XgpSaveTools.SaveHandlers
 	// DI would be overkill?
 	public static class SaveHandlerFactory
 	{
+		// ADD HANDLERS FROM MOST GENERIC TO MOST SPECIALIZED
 		private static readonly List<ISaveHandler> Handlers = new()
 		{
 			new GenericHandler(),
@@ -15,13 +16,23 @@ namespace XgpSaveTools.SaveHandlers
 			new ControlHandler(),
 			new StarfieldHandler(),
 			new ScornHandler(),
-			new Persona3ReloadHandler()
+			new Persona3ReloadHandler(),
+			new ArcadeParadiseHandler(),
+			new CoralIslandHandler(),
+			new Cricket24Handler(),
+			new ForzaHandler(),
+			new LiesOfPHandler(),
+			new LikeADragonHandler(),
+			new PalworldHandler(),
+			new RailwayEmpire2Handler(),
+			new StateOfDecay2Handler()
 		};
 
 		public static ISaveHandler Get(string name)
 		{
-			return Handlers.FirstOrDefault(h => h.CanHandle(name))
-				?? throw new NotSupportedException($"Handler '{name}' not supported.");
+			var handler = Handlers.LastOrDefault(h => h.CanHandle(name)) ?? throw new NotSupportedException($"Handler '{name}' not supported.");
+			Console.WriteLine($"Using {handler.GetType().Name}");
+			return handler;
 		}
 	}
 }
