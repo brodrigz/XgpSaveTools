@@ -1,6 +1,6 @@
 # 🎮 XGP‑Save‑Tools
 
-A .NET port of [XGP-save-extractor](https://github.com/Z1ni/XGP-save-extractor) rebuilt with new features, allows you to **extract** or **replace** Xbox Game Pass (PC) save files, enabling easy transfer of game saves between Xbox Game Pass and Steam/Epic versions (on supported games).
+A .NET version of [XGP-save-extractor](https://github.com/Z1ni/XGP-save-extractor) rebuilt with new features, allows you to **extract** or **replace** Xbox Game Pass (PC) save files, enabling easy transfer of game saves between Xbox Game Pass and Steam/Epic versions (on supported games).
 
 This version includes:
 - Generic handler (allows extraction of saves from ANY game as long as it does not require any extra encryption)
@@ -98,7 +98,7 @@ dotnet publish Xgpst_ConsoleApp/Xgpst_ConsoleApp.csproj \
 
 ## 🙌 Acknowledgments & Contributions
 
-- Port inspired by [Z1ni’s Python XGP-save-extractor](https://github.com/Z1ni/XGP-save-extractor).
+- Inspired by [Z1ni’s Python XGP-save-extractor](https://github.com/Z1ni/XGP-save-extractor).
 - [@snoozbuster](https://github.com/snoozbuster) for reverse engineering container format at https://github.com/goatfungus/NMSSaveEditor/issues/306.
 - Contributions and pull requests are very welcome. Please submit issues or pull requests with your game’s package name, handler type, and relevant samples.
 
