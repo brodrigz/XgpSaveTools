@@ -103,4 +103,3 @@ dotnet publish Xgpst_ConsoleApp/Xgpst_ConsoleApp.csproj \
 - Contributions and pull requests are very welcome. Please submit issues or pull requests with your game’s package name, handler type, and relevant samples.
 
 ---
-
