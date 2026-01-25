@@ -15,6 +15,7 @@ namespace XgpSaveTools.SaveHandlers
             new OneContainerManyFilesFolderHandler(),
             new ControlHandler(),
             new StarfieldHandler(),
+            new Fallout4Handler(),
             new ScornHandler(),
             new Persona3ReloadHandler(),
             new ArcadeParadiseHandler(),

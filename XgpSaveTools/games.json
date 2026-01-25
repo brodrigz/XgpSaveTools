@@ -209,6 +209,12 @@
       "package": "BethesdaSoftworks.ProjectGold_3275kfvn8vcwc",
       "handler": "starfield"
     },
+    // Fallout 4
+    {
+      "name": "Fallout 4",
+      "package": "BethesdaSoftworks.Fallout4-CoreGame_3275kfvn8vcwc",
+      "handler": "fallout-4"
+    },
     // Lies of P
     {
       "name": "Lies of P",
