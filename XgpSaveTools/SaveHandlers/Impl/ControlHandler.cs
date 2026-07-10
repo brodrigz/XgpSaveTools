@@ -9,7 +9,7 @@ using XgpSaveTools.Records;
 
 namespace XgpSaveTools.SaveHandlers.Impl
 {
-	public class ControlHandler : ISaveHandler
+	public class ControlHandler : ISaveHandler, IExportOnlySaveHandler
 	{
 		public bool CanHandle(string handlerName) => handlerName == "control";
 		public IEnumerable<SaveFile> GetSaveEntries(List<ContainerMetaFile> containers, HandlerArgs? args)

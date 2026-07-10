@@ -16,6 +16,7 @@ using static XgpSaveTools.Extensions.IoExtensions;
 using XgpSaveTools.Extensions;
 using System.Runtime.Versioning;
 using System.IO;
+using XgpSaveTools.Operations;
 
 namespace XgpSaveTools
 {
@@ -90,6 +91,12 @@ namespace XgpSaveTools
 			var (storePkg, conts) = ReadUserContainers(userContainer.Dir);
 			var handler = SaveHandlerFactory.Get(info.Handler);
 			return handler.GetSaveEntries(conts, info.HandlerArgs);
+		}
+
+		public GameSaveContext CreateGameSaveContext(GameInfo info, UserContainerFolder userContainer)
+		{
+			var (storePackage, containers) = ReadUserContainers(userContainer.Dir);
+			return new GameSaveContext(info, userContainer, storePackage, containers);
 		}
 
 		private bool IsNumeric(string s) => double.TryParse(s, out _);

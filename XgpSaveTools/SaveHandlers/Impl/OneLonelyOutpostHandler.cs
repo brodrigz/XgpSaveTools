@@ -8,7 +8,7 @@ using XgpSaveTools.Records;
 
 namespace XgpSaveTools.SaveHandlers.Impl
 {
-    public class OneLonelyOutpostHandler : ISaveHandler
+    public class OneLonelyOutpostHandler : ISaveHandler, IExportOnlySaveHandler
     {
         public bool CanHandle(string handlerName) => handlerName == "one-lonely-outpost";
 

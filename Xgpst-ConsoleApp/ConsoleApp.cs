@@ -10,6 +10,9 @@ using static XgpSaveTools.Extensions.IoExtensions;
 using static XgpSaveTools.Common.GameList;
 using System.ComponentModel;
 using System.Diagnostics;
+using XgpSaveTools.Operations;
+using XgpSaveTools.SaveHandlers;
+using Xgpst_ConsoleApp.Operations;
 
 namespace Xgpst_ConsoleApp
 {
@@ -163,105 +166,66 @@ namespace Xgpst_ConsoleApp
 
 		private void SelectOperation()
 		{
-			int result = -1;
 			if (_selectedGame == null || _selectedContainer == null) return;
+			var context = _manager.CreateGameSaveContext(_selectedGame, _selectedContainer);
+			var handler = GameSaveHandlerFactory.Get(_selectedGame);
+			var menu = handler.GetOperations(context)
+				.Select(x => new OperationMenuItem(x.Definition.DisplayName, x))
+				.Append(new OperationMenuItem("Open Directory", null))
+				.ToList();
+
 			Newline();
 			var choice = _helper.SelectOption(
-				new[] { "Extract Files", "Replace/Delete Entries", "Open Directory" },
+				menu,
 				"Select operation:",
-				item => item).Key;
+				item => item.Label);
+			if (choice.Key == -1 || choice.Value == null) return;
 			Newline();
-			switch (choice)
+
+			if (choice.Value.Operation == null)
 			{
-				case 0:
-					result = _manager.Extract(_selectedGame, _selectedContainer);
-					if (result > 0) _helper.WriteSuccess($"{result} files extracted");
-					_helper.WaitInput();
-					break;
-				case 1:
-					//result = HandleEditMode();
-					var editResult = HandleEditMode();
-					if (editResult != null)
-					{
-						if (editResult.Removed > 0) _helper.WriteSuccess($"{editResult.Removed} entries removed");
-						Newline();
-						if (editResult.Replaced > 0) _helper.WriteSuccess($"{editResult.Replaced} entries replaced");
-					}
-					_helper.WaitInput();
-					break;
-				case 2:
-					OpenDirectory(_selectedContainer.Dir);
-					break;
-				case -1: // Back
-					return;
+				OpenDirectory(_selectedContainer.Dir);
+				return;
+			}
+
+			ExecuteOperation(context, choice.Value.Operation);
+		}
+
+		private void ExecuteOperation(GameSaveContext context, IGameSaveOperation operation)
+		{
+			try
+			{
+				var parameters = operation.GetParameters(context);
+				var inputProvider = new ConsoleOperationInputProvider(_helper);
+				var arguments = inputProvider.CollectAsync(parameters, CancellationToken.None).GetAwaiter().GetResult();
+				if (arguments == null) return;
+
+				using var workspace = new TempWorkspace();
+				var plan = operation.PrepareAsync(context, arguments, workspace, CancellationToken.None).GetAwaiter().GetResult();
+				var presenter = new ConsoleOperationPresenter(_helper);
+				if (!presenter.PresentAndConfirm(plan)) return;
+
+				var executor = new OperationExecutor(_manager);
+				var result = plan switch
+				{
+					ExportPlan export => executor.ExecuteExport(export),
+					ImportPlan import => executor.ExecuteImport(context, import),
+					_ => throw new NotSupportedException($"Unsupported operation plan: {plan.GetType().Name}")
+				};
+
+				if (result.OutputPath != null) _helper.WriteSuccess($"Files written to {result.OutputPath}");
+				if (result.BackupPath != null) _helper.WriteSuccess($"Backup created at {result.BackupPath}");
+				_helper.WriteSuccess($"Operation completed ({result.AffectedFiles} files).");
+				_helper.WaitInput();
+			}
+			finally
+			{
+				ClearTempFolders();
 			}
 		}
 		#endregion
 
-
-		public record EditOperationResult(int Replaced, int Removed);
-
-		private EditOperationResult? HandleEditMode()
-		{
-			if (_selectedGame == null || _selectedContainer == null) return null;
-			Newline();
-
-			var entries = _manager.GetSaveEntries(_selectedGame, _selectedContainer).ToList();
-			if (!entries.Any()) throw new Exception("No save entries found");
-
-			var replacements = new Dictionary<int, EntryReplacement>();
-			while (true)
-			{
-
-				var finishOpt = new SaveFile("Finish", ContainerEntry: null);
-				var selection = _helper.SelectOption(
-						 entries.Append(finishOpt).ToList(),
-					"Select an entry (or 'Finish' to continue):",
-					e => GetReplacementOptionLabel(e, replacements));
-
-				if (selection.Value == finishOpt) break; // finished selection
-				if (selection.Key == -1) return null;
-				var result = CreateEntryReplacement(selection.Value!);
-				Newline();
-				if (result == null) continue;
-				replacements[selection.Key] = result;
-			}
-
-			if (replacements.Any())
-			{
-				_manager.ReplaceEntries(_selectedGame, _selectedContainer, replacements.Values);
-				return new EditOperationResult(replacements.Where(x => x.Value?.ReplacementFile != null).Count(), replacements.Where(x => x.Value?.ReplacementFile == null).Count());
-			}
-			else return null;
-		}
-
-		private string GetReplacementOptionLabel(SaveFile entry, Dictionary<int, EntryReplacement> dict)
-		{
-			if (entry.ContainerEntry == null) return "Finish";
-			string lbl = "";
-			var existingEntry = dict.Values.FirstOrDefault(x => x.TargetFile == entry.ContainerEntry);
-			if (existingEntry != null)
-			{
-				lbl = (existingEntry.ReplacementFile == null ? "[D]" : "[R]");
-			}
-			return $"{entry.OutputName} ({entry.GetReadableFileSize()}) {lbl}";
-		}
-
-		private EntryReplacement? CreateEntryReplacement(SaveFile entry)
-		{
-			Newline();
-			var option = _helper.SelectOption(new[] { "Replace", "Delete" });
-			switch (option.Key)
-			{
-				case 0:
-					var file = _helper.ReadValidFile("Enter replacement file path:");
-					return new EntryReplacement(entry.ContainerEntry, file);
-				case 1:
-					return new EntryReplacement(entry.ContainerEntry, null);
-				default:
-					return null;
-			}
-		}
+		private sealed record OperationMenuItem(string Label, IGameSaveOperation? Operation);
 
 		private void HandleException(Exception ex)
 		{

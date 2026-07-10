@@ -47,7 +47,9 @@ Configure supported games via a strongly-typed `games.json` file:
 - **`handler`**: Built‑in save format handlers (`generic`,`1c1f`, `1cnf`, `starfield`, etc.)
 - **`handler_args`**: Handler-specific configurations such as file extension (`{ "suffix": ".sav" }`)
 
-If a game requires a new format handler, you must implement the `ISaveHandler` interface.
+Simple mapping and renaming handlers still use the legacy `ISaveHandler` interface. New game-specific workflows should implement `IGameSaveHandler` and expose explicit `IGameSaveOperation` instances. Operations can declare runtime parameters, prepare export/import plans in temporary storage, and advertise only the capabilities they safely support.
+
+Core handlers do not prompt through `Console` directly. They describe inputs such as files, directories, choices, booleans, or account IDs; the console application collects those values through `IOperationInputProvider`. Only the central operation executor writes ZIP archives or mutates WGS files.
 
 ---
 
@@ -66,17 +68,16 @@ If a game requires a new format handler, you must implement the `ISaveHandler` i
 ### 🔄 Replace a Save Entry
 
 1. Select **Replace Entry**.
-2. Choose the save slot to overwrite.
+2. Choose the directly mapped WGS entry to overwrite.
 3. Provide the file path to your new save file.
-4. Keep replacing slots until you're done, then select **Finish**
-4. The tool automatically **backs up** the container before overwriting every selected file.
+4. Review and confirm the generated import plan.
+5. The tool automatically creates a complete WGS backup before committing the replacement.
 
 ![Replacing Saves](https://github.com/user-attachments/assets/73054752-6f65-4f54-a0eb-f3f18e8c0472)
 
 
 > **Caution**: Not all listed entries are save slots, some files contain crucial general information and can break the game if replaced.
 
----
 
 ## ⚙️ Build & Installation
 
@@ -100,6 +101,8 @@ dotnet publish Xgpst_ConsoleApp/Xgpst_ConsoleApp.csproj \
 
 - Port inspired by [Z1ni’s Python XGP-save-extractor](https://github.com/Z1ni/XGP-save-extractor).
 - [@snoozbuster](https://github.com/snoozbuster) for reverse engineering container format at https://github.com/goatfungus/NMSSaveEditor/issues/306.
+- [@mi5hmash](https://github.com/mi5hmash/idSaveDataResigner) for documenting the idTech 7/8 Steam save encryption scheme used by DOOM.
+- [id Software's DOOM 3 BFG source release](https://github.com/id-Software/DOOM-3-BFG/blob/master/neo/idlib/hashing/MD5.cpp) for the reference `MD5_BlockChecksum` implementation.
 - Contributions and pull requests are very welcome. Please submit issues or pull requests with your game’s package name, handler type, and relevant samples.
 
 ---

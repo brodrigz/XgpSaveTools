@@ -8,7 +8,7 @@ using XgpSaveTools.Records;
 
 namespace XgpSaveTools.SaveHandlers.Impl
 {
-	public class Persona3ReloadHandler : ISaveHandler
+	public class Persona3ReloadHandler : ISaveHandler, IExportOnlySaveHandler
 	{
 		private const string Key = "ae5zeitaix1joowooNgie3fahP5Ohph";
 

@@ -9,7 +9,7 @@ using static XgpSaveTools.Extensions.IoExtensions;
 
 namespace XgpSaveTools.SaveHandlers.Impl
 {
-	public class StarfieldHandler : ISaveHandler
+	public class StarfieldHandler : ISaveHandler, IExportOnlySaveHandler
 	{
 		public bool CanHandle(string handlerName) => handlerName == "starfield";
 		public IEnumerable<SaveFile> GetSaveEntries(List<ContainerMetaFile> containers, HandlerArgs? args)
