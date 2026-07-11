@@ -44,7 +44,9 @@ public sealed class DoomDarkAgesTests
 		var data = Encoding.ASCII.GetBytes("abc");
 
 		Assert.Equal(0x275FA452u, IdTechBlockChecksum.Compute(data));
+		Assert.Equal(new byte[] { 0x52, 0xA4, 0x5F, 0x27 }, IdTechBlockChecksum.CreateSidecar(data, sizeof(uint)));
 		Assert.Equal(new byte[] { 0x52, 0xA4, 0x5F, 0x27, 0, 0, 0, 0 }, IdTechBlockChecksum.CreateSidecar(data));
+		Assert.Throws<ArgumentOutOfRangeException>(() => IdTechBlockChecksum.CreateSidecar(data, 6));
 	}
 
 	[Fact]
@@ -55,8 +57,7 @@ public sealed class DoomDarkAgesTests
 		var operation = handler.GetOperations(fixture.Context).Single(x => x.Definition.Id == "export-to-steam");
 		var arguments = new OperationArguments(new Dictionary<string, object?>
 		{
-			["steam-id64"] = SteamId,
-			["include-profile"] = false
+			["steam-id64"] = SteamId
 		});
 		using var workspace = new TempWorkspace();
 
@@ -64,6 +65,8 @@ public sealed class DoomDarkAgesTests
 			fixture.Context, arguments, workspace, CancellationToken.None));
 
 		Assert.Equal(4, plan.Files.Count);
+		Assert.DoesNotContain(operation.GetParameters(fixture.Context), x => x.Key == "include-profile");
+		Assert.DoesNotContain(plan.Files, x => x.OutputName.StartsWith("PROFILE/", StringComparison.Ordinal));
 		Assert.DoesNotContain(plan.Files, x => x.OutputName.EndsWith(".checksum", StringComparison.Ordinal));
 		foreach (var artifact in plan.Files)
 		{
@@ -93,8 +96,7 @@ public sealed class DoomDarkAgesTests
 		{
 			["source-directory"] = steamDirectory,
 			["steam-id64"] = SteamId,
-			["target-slot"] = "GAME-AUTOSAVE1",
-			["include-profile"] = false
+			["target-slot"] = "GAME-AUTOSAVE1"
 		});
 		using var workspace = new TempWorkspace();
 
@@ -102,6 +104,8 @@ public sealed class DoomDarkAgesTests
 			fixture.Context, arguments, workspace, CancellationToken.None));
 
 		Assert.Equal(6, plan.Mutations.Count);
+		Assert.DoesNotContain(operation.GetParameters(fixture.Context), x => x.Key == "include-profile");
+		Assert.DoesNotContain(plan.Mutations, x => x.Target.ContainerName == "PROFILE");
 		Assert.All(plan.Mutations, x => Assert.Equal("GAME-AUTOSAVE1", x.Target.ContainerName));
 		var currentChecksum = Assert.IsType<PlannedReplacement>(
 			plan.Mutations.Single(x => x.Target.FileName == "game_duration.dat.checksum"));
@@ -109,10 +113,10 @@ public sealed class DoomDarkAgesTests
 	}
 
 	[Fact]
-	public async Task DoomEternal_SupportsDlcSlotsWithoutAssumingChecksumSidecars()
+	public async Task DoomEternal_UsesFourByteChecksumsForDlcSlots()
 	{
 		const string slotName = "DLC1-AUTOSAVE3";
-		using var fixture = new DoomFixture(slotName, includeChecksumSidecars: false, doomEternal: true);
+		using var fixture = new DoomFixture(slotName, doomEternal: true);
 		var steamDirectory = fixture.CreateDirectory($"steam/{slotName}");
 		foreach (var fileName in DoomFixture.AutosaveFileNames)
 		{
@@ -129,12 +133,12 @@ public sealed class DoomDarkAgesTests
 			fixture.Context,
 			new OperationArguments(new Dictionary<string, object?>
 			{
-				["steam-id64"] = SteamId,
-				["include-profile"] = false
+				["steam-id64"] = SteamId
 			}),
 			exportWorkspace,
 			CancellationToken.None));
 		Assert.Equal(4, exportPlan.Files.Count);
+		Assert.DoesNotContain(exportPlan.Files, x => x.OutputName.StartsWith("PROFILE/", StringComparison.Ordinal));
 		Assert.All(exportPlan.Files, x => Assert.StartsWith($"{slotName}/", x.OutputName));
 
 		var importOperation = handler.GetOperations(fixture.Context).Single(x => x.Definition.Id == "import-from-steam");
@@ -145,15 +149,17 @@ public sealed class DoomDarkAgesTests
 			{
 				["source-directory"] = steamDirectory,
 				["steam-id64"] = SteamId,
-				["target-slot"] = slotName,
-				["include-profile"] = false
+				["target-slot"] = slotName
 			}),
 			importWorkspace,
 			CancellationToken.None));
 
-		Assert.Equal(4, importPlan.Mutations.Count);
+		Assert.Equal(6, importPlan.Mutations.Count);
 		Assert.All(importPlan.Mutations, x => Assert.Equal(slotName, x.Target.ContainerName));
-		Assert.DoesNotContain(importPlan.Mutations, x => x.Target.FileName.EndsWith(".checksum", StringComparison.Ordinal));
+		Assert.DoesNotContain(importPlan.Mutations, x => x.Target.ContainerName == "PROFILE");
+		var checksum = Assert.IsType<PlannedReplacement>(
+			importPlan.Mutations.Single(x => x.Target.FileName == "game_duration.dat.checksum"));
+		Assert.Equal(IdTechBlockChecksum.CreateSidecar(Duration, sizeof(uint)), File.ReadAllBytes(checksum.PreparedFile));
 	}
 
 	private sealed class DoomFixture : IDisposable
@@ -171,7 +177,6 @@ public sealed class DoomDarkAgesTests
 
 		public DoomFixture(
 			string slotName = "GAME-AUTOSAVE1",
-			bool includeChecksumSidecars = true,
 			bool doomEternal = false)
 		{
 			_root = Path.Combine(Path.GetTempPath(), "XgpSaveTools.Tests", Guid.NewGuid().ToString("N"));
@@ -182,11 +187,9 @@ public sealed class DoomDarkAgesTests
 				var data = fileName.StartsWith("game.details", StringComparison.Ordinal) ? Details : Duration;
 				entries.Add(CreateEntry("xgp", fileName, data));
 			}
-			if (includeChecksumSidecars)
-			{
-				entries.Add(CreateEntry("xgp", "game_duration.dat.checksum", new byte[8]));
-				entries.Add(CreateEntry("xgp", "game_duration.dat-BACKUP.checksum", new byte[8]));
-			}
+			var checksumLength = doomEternal ? sizeof(uint) : sizeof(ulong);
+			entries.Add(CreateEntry("xgp", "game_duration.dat.checksum", new byte[checksumLength]));
+			entries.Add(CreateEntry("xgp", "game_duration.dat-BACKUP.checksum", new byte[checksumLength]));
 
 			var user = new UserContainerFolder("TESTUSER", _root);
 			var game = new GameInfo(

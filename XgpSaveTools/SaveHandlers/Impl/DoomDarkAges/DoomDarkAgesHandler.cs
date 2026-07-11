@@ -7,7 +7,6 @@ namespace XgpSaveTools.SaveHandlers.Impl.DoomDarkAges;
 public abstract class DoomIdTechHandler : IGameSaveHandler
 {
 	private const string SteamIdKey = "steam-id64";
-	private const string IncludeProfileKey = "include-profile";
 	private const string SourceDirectoryKey = "source-directory";
 	private const string TargetSlotKey = "target-slot";
 
@@ -22,18 +21,18 @@ public abstract class DoomIdTechHandler : IGameSaveHandler
 	private readonly string _handlerId;
 	private readonly string _gameName;
 	private readonly string _archiveSlug;
-	private readonly bool _requireChecksumSidecars;
+	private readonly int _checksumSidecarLength;
 
 	protected DoomIdTechHandler(
 		string handlerId,
 		string gameName,
 		string archiveSlug,
-		bool requireChecksumSidecars)
+		int checksumSidecarLength)
 	{
 		_handlerId = handlerId;
 		_gameName = gameName;
 		_archiveSlug = archiveSlug;
-		_requireChecksumSidecars = requireChecksumSidecars;
+		_checksumSidecarLength = checksumSidecarLength;
 	}
 
 	public string Id => _handlerId;
@@ -59,20 +58,12 @@ public abstract class DoomIdTechHandler : IGameSaveHandler
 		public OperationDefinition Definition { get; } = new(
 			"export-to-steam",
 			"Export to Steam",
-			"Encrypt XGP save slots for a Steam account.",
+			"Encrypt XGP campaign slots for a Steam account while preserving Steam's native profile.",
 			OperationKind.Export);
 
 		public IReadOnlyList<OperationParameter> GetParameters(GameSaveContext context)
 		{
-			return new OperationParameter[]
-			{
-				SteamIdParameter("Target SteamID64"),
-				new BooleanParameter(
-					IncludeProfileKey,
-					"Include PROFILE/profile.bin",
-					false,
-					"Profile transfer is experimental and may copy platform-specific settings or account state.")
-			};
+			return new OperationParameter[] { SteamIdParameter("Target SteamID64") };
 		}
 
 		public Task<OperationPlan> PrepareAsync(
@@ -100,16 +91,6 @@ public abstract class DoomIdTechHandler : IGameSaveHandler
 				}
 			}
 
-			if (arguments.GetBoolean(IncludeProfileKey))
-			{
-				var profile = RequireContainer(context, "PROFILE");
-				var entry = RequireEntry(profile, "profile.bin");
-				var encrypted = IdTechSteamSaveCrypto.Encrypt(File.ReadAllBytes(entry.Path), "profile.bin", steamId);
-				var outputPath = workspace.GetPath(Path.Combine("PROFILE", "profile.bin"));
-				File.WriteAllBytes(outputPath, encrypted);
-				artifacts.Add(new ExportArtifact("PROFILE/profile.bin", outputPath));
-			}
-
 			OperationPlan plan = new ExportPlan(artifacts, _handler.CreateArchiveName(context, "steam"));
 			return Task.FromResult(plan);
 		}
@@ -127,7 +108,7 @@ public abstract class DoomIdTechHandler : IGameSaveHandler
 		public OperationDefinition Definition { get; } = new(
 			"import-from-steam",
 			"Import from Steam",
-			"Decrypt a Steam save and replace an existing XGP slot.",
+			"Decrypt a Steam campaign save and replace an existing XGP slot while preserving the XGP profile.",
 			OperationKind.Import);
 
 		public IReadOnlyList<OperationParameter> GetParameters(GameSaveContext context)
@@ -145,12 +126,7 @@ public abstract class DoomIdTechHandler : IGameSaveHandler
 					"Steam save-slot directory",
 					"Select the directory that directly contains game.details and game_duration.dat."),
 				SteamIdParameter("Source SteamID64"),
-				new ChoiceParameter(TargetSlotKey, "Target existing XGP slot", slots),
-				new BooleanParameter(
-					IncludeProfileKey,
-					"Replace XGP PROFILE/profile.bin",
-					false,
-					"Profile replacement is experimental. The Steam PROFILE directory must be beside the selected autosave directory.")
+				new ChoiceParameter(TargetSlotKey, "Target existing XGP slot", slots)
 			};
 		}
 
@@ -198,26 +174,12 @@ public abstract class DoomIdTechHandler : IGameSaveHandler
 				workspace,
 				mutations);
 
-			if (arguments.GetBoolean(IncludeProfileKey))
-			{
-				var sourceParent = Directory.GetParent(Path.GetFullPath(sourceDirectory))?.FullName
-					?? throw new InvalidOperationException("Could not locate the Steam PROFILE directory.");
-				var sourceProfile = Path.Combine(sourceParent, "PROFILE", "profile.bin");
-				if (!File.Exists(sourceProfile)) throw new FileNotFoundException("Steam profile.bin was not found beside the selected autosave directory.", sourceProfile);
-				var profileData = IdTechSteamSaveCrypto.Decrypt(File.ReadAllBytes(sourceProfile), "profile.bin", steamId);
-				if (profileData.Length == 0) throw new InvalidDataException("Decrypted profile.bin is empty.");
-				var preparedProfile = workspace.GetPath(Path.Combine("import", "profile.bin"));
-				File.WriteAllBytes(preparedProfile, profileData);
-				var targetProfile = RequireContainer(context, "PROFILE");
-				RequireEntry(targetProfile, "profile.bin");
-				mutations.Add(new PlannedReplacement(new WgsEntryKey("PROFILE", "profile.bin"), preparedProfile));
-			}
-
 			OperationPlan plan = new ImportPlan(
 				mutations,
 				new[]
 				{
 					$"Close {_handler._gameName} before continuing.",
+					"The destination's existing PROFILE/profile.bin will be preserved.",
 					"Cloud synchronization may overwrite imported files. Keep the generated WGS backup until the save is verified."
 				});
 			return Task.FromResult(plan);
@@ -253,15 +215,9 @@ public abstract class DoomIdTechHandler : IGameSaveHandler
 		ITempWorkspace workspace,
 		ICollection<PlannedWgsMutation> mutations)
 	{
-		var checksumEntry = targetContainer.Files.SingleOrDefault(x => x.Name == checksumName);
-		if (checksumEntry is null)
-		{
-			if (_requireChecksumSidecars)
-				throw new InvalidDataException($"Required WGS entry not found: {targetContainer.Name}/{checksumName}");
-			return;
-		}
+		RequireEntry(targetContainer, checksumName);
 		var preparedPath = workspace.GetPath(Path.Combine("import", checksumName));
-		File.WriteAllBytes(preparedPath, IdTechBlockChecksum.CreateSidecar(payload));
+		File.WriteAllBytes(preparedPath, IdTechBlockChecksum.CreateSidecar(payload, _checksumSidecarLength));
 		mutations.Add(new PlannedReplacement(new WgsEntryKey(targetSlotName, checksumName), preparedPath));
 	}
 
@@ -298,7 +254,7 @@ public sealed class DoomDarkAgesHandler : DoomIdTechHandler
 	public const string HandlerId = "doom-dark-ages";
 
 	public DoomDarkAgesHandler()
-		: base(HandlerId, "DOOM: The Dark Ages", "doom_the_dark_ages", requireChecksumSidecars: true)
+		: base(HandlerId, "DOOM: The Dark Ages", "doom_the_dark_ages", checksumSidecarLength: sizeof(ulong))
 	{
 	}
 }

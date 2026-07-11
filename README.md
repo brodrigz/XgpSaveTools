@@ -1,61 +1,22 @@
-# 🎮 XGP‑Save‑Tools
+# 🎮 XGP‑Save‑Tools 🎮
 
-A .NET port of [XGP-save-extractor](https://github.com/Z1ni/XGP-save-extractor) rebuilt with new features, allows you to **extract** or **replace** Xbox Game Pass (PC) save files, enabling easy transfer of game saves between Xbox Game Pass and Steam/Epic versions (on supported games).
+A .NET CLI for extracting and replacing Xbox Game Pass PC saves, based on [XGP-save-extractor](https://github.com/Z1ni/XGP-save-extractor). It understands the WGS container format and supports game-specific conversion where storefront save formats differ.
 
-This version includes:
-- Generic handler (allows extraction of saves from ANY game as long as it does not require any extra encryption)
-- Replace mode (helps you to transfer saves from steam/epic into Xbox Game Pass)
-- Custom directories 
-- Better menu navigation
+- Generic WGS extraction and direct-entry replacement
+- Game-specific export/import operations
+- Automatic backups and rollback for multi-file replacements
+- Custom WGS directories
 ---
 
-## 🛠️ Requirements
+## Requirements
 
 - **.NET 6 runtime** 
 - Windows 10/11 (UWP package layout located at `%LOCALAPPDATA%\Packages`)
 ---
 
-## 📝 Extensibility
+## How to Use
 
-Most games will work using the generic handler.
-> **Obs**: If a game is not registered on the `games.json`, it's extracted files names will have no extension suffixes.
-
-Some games require unique handlers, those have to be implemented.
-
-Configure supported games via a strongly-typed `games.json` file:
-
-```jsonc
-{
-  "games": [
-    {
-      "name": "Atomic Heart",
-      "package": "FocusHomeInteractiveSA.579645D26CFD_4hny5m903y3g0",
-      "handler": "1c1f",
-      "handler_args": { "suffix": ".sav" }
-    },
-    {
-      "name": "Starfield",
-      "package": "BethesdaSoftworks.Starfield_8wekyb3d8bbwe",
-      "handler": "starfield"
-    }
-    // Add or tweak game entries here...
-  ]
-}
-```
-
-- **`package`**: Folder path within `%LOCALAPPDATA%\Packages`
-- **`handler`**: Built‑in save format handlers (`generic`,`1c1f`, `1cnf`, `starfield`, etc.)
-- **`handler_args`**: Handler-specific configurations such as file extension (`{ "suffix": ".sav" }`)
-
-Simple mapping and renaming handlers still use the legacy `ISaveHandler` interface. New game-specific workflows should implement `IGameSaveHandler` and expose explicit `IGameSaveOperation` instances. Operations can declare runtime parameters, prepare export/import plans in temporary storage, and advertise only the capabilities they safely support.
-
-Core handlers do not prompt through `Console` directly. They describe inputs such as files, directories, choices, booleans, or account IDs; the console application collects those values through `IOperationInputProvider`. Only the central operation executor writes ZIP archives or mutates WGS files.
-
----
-
-## 🚀 How to Use
-
-### 📤 Extract Saves
+### Extract Saves
 
 1. Select your game from the available list, or enter a path to your `wgs` directory.
 2. Select your user container ID.
@@ -65,7 +26,7 @@ Core handlers do not prompt through `Console` directly. They describe inputs suc
 ![Extracting Saves](https://github.com/user-attachments/assets/e8806a1a-5002-45e1-b4cc-ddcc321689bd)
 
 
-### 🔄 Replace a Save Entry
+### Replace a Save Entry
 
 1. Select **Replace Entry**.
 2. Choose the directly mapped WGS entry to overwrite.
@@ -78,12 +39,11 @@ Core handlers do not prompt through `Console` directly. They describe inputs suc
 
 > **Caution**: Not all listed entries are save slots, some files contain crucial general information and can break the game if replaced.
 
-
-## ⚙️ Build & Installation
+### Build & Installation
 
 You can grab the latest pre-built executable release at https://github.com/brodrigz/XgpSaveTools/releases/latest
 
-### 🔨 Build from Source
+### Build from Source
 
 If you prefer to build yourself, clone the repo and publish with .NET 6:
 
@@ -95,6 +55,81 @@ dotnet publish Xgpst_ConsoleApp/Xgpst_ConsoleApp.csproj \
   /p:PublishSingleFile=true \
   --output bin/Release/net6.0/publish/win-x64
 ```
+---
+
+## Implementing new handlers
+
+Register every game in [`games.json`](XgpSaveTools/games.json) using its `%LOCALAPPDATA%\Packages` folder name. Unregistered games fall back to `generic`. Start with a built-in mapping handler when the storefronts use the same file format:
+
+| Handler | Default behavior |
+|---|---|
+| `generic` | Exposes every WGS entry using its stored filename |
+| `1c1f` | Exposes the first file in each container, named after the container |
+| `1cnf` | Exposes every file from the first container |
+| `1cnf-folder` | Exposes every container as a folder and its entries as files |
+
+```json
+{
+  "name": "Example Game",
+  "package": "Publisher.ExampleGame_abc123",
+  "handler": "1c1f",
+  "handler_args": { "suffix": ".sav" }
+}
+```
+
+These handlers automatically receive **Extract Files**, **Replace Entry**, and **Delete Entry** operations. For different naming only, implement `ISaveHandler`, add it to `SaveHandlerFactory`, and return direct `ContainerEntry` mappings. Mark a transformed legacy handler with `IExportOnlySaveHandler` so temporary export files cannot be offered as replacement targets.
+
+### Custom operations
+
+Use `IGameSaveHandler` when a game needs encryption, runtime input, validation, or an atomic multi-file import. A handler advertises only the operations it safely supports:
+
+```csharp
+public sealed class ExampleHandler : IGameSaveHandler
+{
+    public const string HandlerId = "example";
+    public string Id => HandlerId;
+
+    public IReadOnlyList<IGameSaveOperation> GetOperations(GameSaveContext context) =>
+        new IGameSaveOperation[] { new ExportOperation() };
+
+    private sealed class ExportOperation : IGameSaveOperation
+    {
+        public OperationDefinition Definition { get; } = new(
+            "export", "Export", "Convert this save.", OperationKind.Export);
+
+        public IReadOnlyList<OperationParameter> GetParameters(GameSaveContext context) =>
+            new OperationParameter[]
+            {
+                new TextParameter("account-id", "Target account ID"),
+                new ChoiceParameter("slot", "Source slot",
+                    context.Containers.Select(x => new ChoiceOption(x.Name, x.Name)).ToList())
+            };
+
+        public Task<OperationPlan> PrepareAsync(
+            GameSaveContext context, OperationArguments arguments,
+            ITempWorkspace workspace, CancellationToken cancellationToken)
+        {
+            arguments.Validate(GetParameters(context));
+            var slot = context.Containers.Single(x =>
+                x.Name == arguments.GetRequiredString("slot"));
+            var output = workspace.GetPath("save.dat");
+
+            var source = slot.Files.Single(x => x.Name == "save.dat");
+            File.Copy(source.Path, output); // Transform here if needed.
+
+            return Task.FromResult<OperationPlan>(new ExportPlan(
+                new[] { new ExportArtifact("save.dat", output) }, "example.zip"));
+        }
+    }
+}
+```
+
+`GetParameters` defines console prompts without calling `Console`: use `TextParameter`, `FileParameter`, `DirectoryParameter`, `ChoiceParameter`, or `BooleanParameter`. Read validated values from `OperationArguments`.
+
+Return an `ExportPlan` for ZIP output. For replacement, prepare every file in `ITempWorkspace` and return one `ImportPlan` containing `PlannedReplacement` or `PlannedDeletion` entries. The central executor validates targets, creates a WGS backup, commits the complete plan, and rolls back failures.
+
+Finally, set `"handler": "example"` in `games.json` and add `if (game.Handler == ExampleHandler.HandlerId) return new ExampleHandler();` to `GameSaveHandlerFactory.Get`. See [`DoomDarkAgesHandler.cs`](XgpSaveTools/SaveHandlers/Impl/DoomDarkAges/DoomDarkAgesHandler.cs) for a bidirectional example and [`XgpSaveTools/Operations`](XgpSaveTools/Operations) for the relevant contracts.
+
 ---
 
 ## 🙌 Acknowledgments & Contributions
