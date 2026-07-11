@@ -14,10 +14,13 @@ public static class IdTechBlockChecksum
 			^ BinaryPrimitives.ReadUInt32LittleEndian(digest.AsSpan(12, 4));
 	}
 
-	public static byte[] CreateSidecar(ReadOnlySpan<byte> data)
+	public static byte[] CreateSidecar(ReadOnlySpan<byte> data, int length = sizeof(ulong))
 	{
-		var output = new byte[sizeof(ulong)];
-		BinaryPrimitives.WriteUInt64LittleEndian(output, Compute(data));
+		if (length != sizeof(uint) && length != sizeof(ulong))
+			throw new ArgumentOutOfRangeException(nameof(length), "Checksum sidecars must be either 4 or 8 bytes.");
+
+		var output = new byte[length];
+		BinaryPrimitives.WriteUInt32LittleEndian(output, Compute(data));
 		return output;
 	}
 }
