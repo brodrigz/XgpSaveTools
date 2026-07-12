@@ -96,7 +96,9 @@ namespace Xgpst_ConsoleApp
 				options = options.Append(showUnregisteredOpt).ToList();
 			}
 
-			var orderedList = options.OrderBy(x => x is UnregisteredGameInfo).ThenBy(x => x.Name);
+			var orderedList = options
+				.OrderBy(x => x == showUnregisteredOpt ? 2 : x is UnregisteredGameInfo ? 1 : 0)
+				.ThenBy(x => x.Name);
 			string getLabel(GameInfo gameInfo)
 			{
 				return (gameInfo is UnregisteredGameInfo) ?

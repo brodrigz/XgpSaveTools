@@ -1,6 +1,7 @@
 # 🎮 XGP‑Save‑Tools 🎮
 
-A .NET CLI for extracting and replacing Xbox PC saves, based on [XGP-save-extractor](https://github.com/Z1ni/XGP-save-extractor). It supports legacy WGS containers, file-oriented PGS saves, and game-specific conversion where storefront formats differ.
+A .NET CLI for extracting and replacing Xbox PC saves, based on [XGP-save-extractor](https://github.com/Z1ni/XGP-save-extractor).
+It supports legacy WGS containers, file-oriented PGS saves, and game-specific conversion logic.
 
 - Generic WGS extraction and direct-entry replacement
 - Consistent PGS snapshot backup and file extraction
@@ -43,12 +44,6 @@ PGS games provide two operations:
 
 - **Export Complete PGS Backup** includes the active snapshot, PGS metadata, and a SHA-256 integrity manifest.
 - **Extract Game Files** exports only the untouched `ContainersRoot` file tree.
-
-Close the game and wait about 30 seconds for cloud synchronization before either operation. PGS handling is currently read-only: replacement is disabled until its snapshot metadata and cloud transaction can be updated safely.
-
-Forza Horizon 6 is registered with PGS game ID `16D460`. Its handler backs up or extracts the files as stored; it does not claim to convert them to a different storefront format.
-
-Some account-bound or still-undocumented formats expose **Export Raw Xbox Data** instead of replacement or storefront conversion. This is intentional: the archive is useful for backup and future research without presenting an opaque payload as Steam-compatible. Brotato is fully unpacked for Steam and prompts for the destination SteamID64.
 
 ## Build and installation
 
