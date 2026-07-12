@@ -11,7 +11,7 @@ A .NET CLI for extracting and replacing Xbox Game Pass PC saves, based on [XGP-s
 
 ## Requirements
 
-- **.NET 6 runtime**
+- **.NET 6 runtime** (recent releases are self-contained)
 - Windows 10/11
 
 ## How to use
