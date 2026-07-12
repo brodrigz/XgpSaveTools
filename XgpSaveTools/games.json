@@ -54,6 +54,14 @@
       }
     },
     {
+      "name": "Indiana Jones and the Great Circle",
+      "package": "BethesdaSoftworks.ProjectRelic_3275kfvn8vcwc",
+      "handler": "1c1f",
+      "handler_args": {
+        "suffix": ".sav"
+      }
+    },
+    {
       "name": "Lords of the Fallen",
       "package": "CIGamesS.A.LordsoftheFallen-PC_9609msxhzdsvj",
       "handler": "1c1f",
@@ -78,6 +86,11 @@
       }
     },
     {
+      "name": "Railroads Online",
+      "package": "astragonSoftwareGmbH.RailroadsOnline_gq6wh0enzmg8j",
+      "handler": "1c1f"
+    },
+    {
       "name": "Solar Ash",
       "package": "AnnapurnaInteractive.SolarAsh_c96c51jf6wkvm",
       "handler": "1c1f",
@@ -99,6 +112,11 @@
       "handler": "1cnf"
     },
     {
+      "name": "Chants of Sennaar",
+      "package": "FocusHomeInteractiveSA.ChantsofSennaar-Windows_4hny5m903y3g0",
+      "handler": "1cnf"
+    },
+    {
       "name": "Chorus",
       "package": "DeepSilver.UnleashedGoF_hmv7qcest37me",
       "handler": "1cnf",
@@ -110,6 +128,14 @@
       "name": "Hades",
       "package": "SupergiantGamesLLC.Hades_q53c1yqmx7pha",
       "handler": "1cnf"
+    },
+    {
+      "name": "Avowed",
+      "package": "Microsoft.Avowed_8wekyb3d8bbwe",
+      "handler": "1cnf",
+      "handler_args": {
+        "suffix": ".sav"
+      }
     },
     {
       "name": "Hypnospace Outlaw",
@@ -144,11 +170,26 @@
       "package": "LandfallGames.TotallyAccurateBattleSimulator_r2vq7k2y0v9ct",
       "handler": "1cnf"
     },
+    {
+      "name": "Citizen Sleeper 2: Starward Vector",
+      "package": "SurpriseAttackPtyLtd.CitizenSleeper2StarwardVector_8k24hnfn3vvj0",
+      "handler": "1cnf"
+    },
     // 1cnf-folder
     // Each container represents one folder.
     {
       "name": "Ninja Gaiden Sigma",
       "package": "946B6A6E.NINJAGAIDENSIGMA_dkffhzhmh6pmy",
+      "handler": "1cnf-folder"
+    },
+    {
+      "name": "Dungeons of Hinterberg",
+      "package": "CurveDigital.DungeonsOfHinterberg_1ezqdnbhnc70m",
+      "handler": "1cnf-folder"
+    },
+    {
+      "name": "Kingdom Come: Deliverance II",
+      "package": "DeepSilver.77536C3FE941_hmv7qcest37me",
       "handler": "1cnf-folder"
     },
     {
@@ -162,6 +203,11 @@
       "handler": "1cnf-folder"
     },
     {
+      "name": "Phoenix Point",
+      "package": "SnapshotGames.PhoenixPoint_xxvrk32m0sthm",
+      "handler": "1cnf-folder"
+    },
+    {
       "name": "SpiderHeck",
       "package": "tinyBuildGames.SpiderHeck_3sz1pp2ynv2xe",
       "handler": "1cnf-folder"
@@ -169,6 +215,11 @@
     {
       "name": "Wo Long: Fallen Dynasty",
       "package": "946B6A6E.WoLongFallenDynasty_dkffhzhmh6pmy",
+      "handler": "1cnf-folder"
+    },
+    {
+      "name": "The Outer Worlds 2",
+      "package": "Microsoft.OE-Arkansas_8wekyb3d8bbwe",
       "handler": "1cnf-folder"
     },
     // Yakuza / Like a Dragon games
@@ -233,6 +284,15 @@
       "package": "Microsoft.624F8B84B80_8wekyb3d8bbwe",
       "handler": "forza"
     },
+    {
+      "name": "Forza Horizon 6",
+      "package": "Microsoft.ForteBaseGame_8wekyb3d8bbwe",
+      "source": "pgs",
+      "source_args": {
+        "game_id": "16D460"
+      },
+      "handler": "pgs-forza"
+    },
     // Arcade Paradise
     {
       "name": "Arcade Paradise",
@@ -255,6 +315,11 @@
     {
       "name": "Coral Island",
       "package": "HumbleBundle.CoralIsland_q2mcdwmzx4qja",
+      "handler": "coral-island"
+    },
+    {
+      "name": "Blue Prince",
+      "package": "RawFury.BluePrince_9s0pnehqffj7t",
       "handler": "coral-island"
     },
     // Cricket 24
@@ -297,7 +362,68 @@
     {
       "name": "Galacticare",
       "package": "TheCultGamesLtd.Galacticare_vnassb3anythc",
+      "handler": "galacticare"
+    },
+    {
+      "name": "Balatro",
+      "package": "PlayStack.Balatro_3wcqaesafpzfy",
+      "handler": "balatro"
+    },
+    {
+      "name": "Hollow Knight: Silksong",
+      "package": "TeamCherry.HollowKnightSilksong_y4jvztpgccj42",
+      "handler": "silksong"
+    },
+    {
+      "name": "Metaphor: ReFantazio",
+      "package": "SEGAofAmericaInc.Pae22b02y_s751p9cej88mt",
+      "handler": "metaphor-refantazio"
+    },
+    {
+      "name": "Solarpunk",
+      "package": "rokapublish.Solarpunk_6q4vfhsywtz4j",
+      "handler": "1c1f",
+      "handler_args": {
+        "suffix": ".sav"
+      }
+    },
+    {
+      "name": "Crime Scene Cleaner",
+      "package": "5901F20F.CrimeSceneCleaner_t06nbjdc8fw86",
+      "handler": "1cnf"
+    },
+    {
+      "name": "Roadside Research",
+      "package": "OroInteractive.RoadsideResearch_z7bgc74zqm87r",
       "handler": "generic"
+    },
+    {
+      "name": "TCG Card Shop Simulator",
+      "package": "OPNEONGAMES.TCGCardShopSimulator_19j6by82ahhzr",
+      "handler": "1c1f",
+      "handler_args": {
+        "suffix": ".json"
+      }
+    },
+    {
+      "name": "Ninja Gaiden 2 Black",
+      "package": "946B6A6E.NINJAGAIDEN2Black_dkffhzhmh6pmy",
+      "handler": "ninja-gaiden-2-black"
+    },
+    {
+      "name": "Dragon Ball Xenoverse 2",
+      "package": "NAMCOBANDAIGamesInc.DBXV2BaseGame_gdy2aq6ez762w",
+      "handler": "dragon-ball-xenoverse-2-raw"
+    },
+    {
+      "name": "Abiotic Factor",
+      "package": "PlayStack.AbioticFactor_3wcqaesafpzfy",
+      "handler": "abiotic-factor-raw"
+    },
+    {
+      "name": "Brotato",
+      "package": "19886SeavenStudio.Brotato_fahzzgrzfd3xc",
+      "handler": "brotato"
     },
     {
       "name": "Persona 3 Reload",

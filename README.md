@@ -1,12 +1,12 @@
 # 🎮 XGP‑Save‑Tools 🎮
 
-A .NET CLI for extracting and replacing Xbox Game Pass PC saves, based on [XGP-save-extractor](https://github.com/Z1ni/XGP-save-extractor). It understands the WGS container format and supports game-specific conversion where storefront save formats differ.
+A .NET CLI for extracting and replacing Xbox PC saves, based on [XGP-save-extractor](https://github.com/Z1ni/XGP-save-extractor).
+It supports legacy WGS containers, file-oriented PGS saves, and game-specific conversion logic.
 
 - Generic WGS extraction and direct-entry replacement
+- Consistent PGS snapshot backup and file extraction
 - Game-specific export/import operations
 - Automatic backups and rollback for multi-file replacements
-- Custom WGS directories
-
 ---
 
 ## Requirements
@@ -36,6 +36,15 @@ A .NET CLI for extracting and replacing Xbox Game Pass PC saves, based on [XGP-s
 
 > **Caution:** Not every entry is a save slot. Keep the generated backup until the game has loaded successfully.
 
+### PGS saves
+
+Newer games can store their saves under `%SystemDrive%\XboxGames\GameSave\pgs` instead of a package's `SystemAppData\wgs` directory. The tool discovers these saves by PGS game ID and resolves the active `current` snapshot.
+
+PGS games provide two operations:
+
+- **Export Complete PGS Backup** includes the active snapshot, PGS metadata, and a SHA-256 integrity manifest.
+- **Extract Game Files** exports only the untouched `ContainersRoot` file tree.
+
 ## Build and installation
 
 Download the latest release from [GitHub Releases](https://github.com/brodrigz/XgpSaveTools/releases/latest), or publish it locally:
@@ -53,7 +62,7 @@ dotnet publish Xgpst-ConsoleApp/Xgpst-ConsoleApp.csproj \
 
 ## Implementing new handlers
 
-Most games need no custom code. Register the package in [`games.json`](XgpSaveTools/games.json) and use a built-in mapping:
+Most WGS games need no custom code. Register the package in [`games.json`](XgpSaveTools/games.json) and use a built-in mapping:
 
 | Handler | Behavior |
 |---|---|
@@ -71,18 +80,35 @@ Most games need no custom code. Register the package in [`games.json`](XgpSaveTo
 }
 ```
 
+`source` defaults to `wgs`. For a file-oriented PGS game, register its PGS game ID separately from handler arguments:
+
+```json
+{
+  "name": "Example PGS Game",
+  "package": "Publisher.ExampleGame_abc123",
+  "source": "pgs",
+  "source_args": { "game_id": "ABC123" },
+  "handler": "pgs-files"
+}
+```
+
+`pgs-files` provides complete backup and raw `ContainersRoot` extraction without custom code. Add a game-specific handler only when those files need filtering or transformation. Storage discovery belongs in a save source; game-format logic belongs in a handler.
+
 ### Adding custom logic
 
 Custom handlers follow one simple flow:
 
 ```mermaid
 flowchart LR
-    A["games.json"] --> B["Handler registry"]
-    B --> C["IGameSaveHandler"]
-    C --> D["Operation"]
-    D --> E{"OperationPlan"}
-    E -->|ExportPlan| F["ZIP archive"]
-    E -->|ImportPlan| G["Backup and atomic WGS update"]
+    A["games.json"] --> B{"Save source"}
+    B -->|WGS| C["WGS containers"]
+    B -->|PGS| D["PGS snapshot"]
+    C --> E["IGameSaveHandler"]
+    D --> E
+    E --> F["Operation"]
+    F --> G{"OperationPlan"}
+    G -->|ExportPlan| H["ZIP archive"]
+    G -->|ImportPlan| I["Backup and atomic WGS update"]
 ```
 
 Implement `IGameSaveHandler`, expose the operations your game supports, and prepare a plan:
@@ -156,6 +182,8 @@ Keep these rules in mind:
 - Never modify WGS in `PrepareAsync`; only return a plan.
 - Write transformed files inside `ITempWorkspace`.
 - Put related replacements in one `ImportPlan` so backup and rollback cover everything.
+- For PGS handlers, read `context.PgsSnapshot.Files`; do not parse or rewrite Gaming Services metadata in the handler.
+- PGS imports are intentionally unavailable until the source can perform a safe cloud-aware transaction.
 
 See [`DoomDarkAgesHandler.cs`](XgpSaveTools/SaveHandlers/Impl/DoomDarkAges/DoomDarkAgesHandler.cs) for a complete bidirectional example.
 

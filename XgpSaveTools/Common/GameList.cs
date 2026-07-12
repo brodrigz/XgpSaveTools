@@ -1,6 +1,7 @@
 ﻿using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
 using XgpSaveTools.Records;
+using XgpSaveTools.SaveSources;
 using static XgpSaveTools.Extensions.IoExtensions;
 
 namespace XgpSaveTools.Common
@@ -26,25 +27,49 @@ namespace XgpSaveTools.Common
 
         public static IEnumerable<GameInfo> DiscoverUserGames(IEnumerable<GameInfo>? supportedGameList = null)
         {
-            var games = supportedGameList ?? ReadGameList();
+            var games = (supportedGameList ?? ReadGameList()).ToList();
+            var yielded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            var root = new DirectoryInfo(PackagesRoot);
-            foreach (var wgsDir in root.GetDirectories("wgs", SearchOption.AllDirectories))
+            foreach (var packageName in GameSaveSourceRegistry.Wgs.EnumeratePackageNames())
             {
-                string? packageName = wgsDir?.Parent?.Parent?.Name;
-                if (string.IsNullOrEmpty(packageName)) continue;
-
                 //supported
-                var supported = games.FirstOrDefault(x => x.Package == packageName);
+                var supported = games.FirstOrDefault(x =>
+                    x.Package == packageName &&
+                    (string.IsNullOrWhiteSpace(x.Source) || x.Source.Equals("wgs", StringComparison.OrdinalIgnoreCase)));
                 if (supported != null)
                 {
-                    yield return supported;
+                    if (yielded.Add($"wgs:{supported.Package}")) yield return supported;
                     continue;
                 }
+
+                // A PGS package can retain an empty compatibility wgs directory.
+                if (games.Any(x => x.Package == packageName)) continue;
+
                 //Unregistered
-                yield return new UnregisteredGameInfo(packageName, packageName, "generic", null);
+                if (yielded.Add($"wgs:{packageName}"))
+                    yield return new UnregisteredGameInfo(packageName, packageName, "generic", null);
             }
-            //return games.Where(x => Directory.Exists(Path.Combine(PackagesRoot, x.Package))); //doesnt look for anything outside supported game list
+
+            foreach (var pgsRoot in GameSaveSourceRegistry.Pgs.EnumerateUserRoots())
+            {
+                var supported = games.FirstOrDefault(x =>
+                    string.Equals(x.Source, "pgs", StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(x.SourceArgs?.GameId, pgsRoot.GameId, StringComparison.OrdinalIgnoreCase));
+                if (supported != null)
+                {
+                    if (yielded.Add($"pgs:{pgsRoot.GameId}")) yield return supported;
+                    continue;
+                }
+
+                if (yielded.Add($"pgs:{pgsRoot.GameId}"))
+                    yield return new UnregisteredGameInfo(
+                        $"PGS game {pgsRoot.GameId}",
+                        $"pgs:{pgsRoot.GameId}",
+                        "pgs-files",
+                        null,
+                        "pgs",
+                        new SourceArgs(pgsRoot.GameId));
+            }
         }
     }
 }
