@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Text;
 using XgpSaveTools.Operations;
 using XgpSaveTools.Records;
@@ -17,22 +18,26 @@ public abstract class DoomIdTechHandler : IGameSaveHandler
 		"game_duration.dat",
 		"game_duration.dat-BACKUP"
 	};
+	private static readonly byte[] SlotFileMarker = Encoding.ASCII.GetBytes("SlotFile");
 
 	private readonly string _handlerId;
 	private readonly string _gameName;
 	private readonly string _archiveSlug;
 	private readonly int _checksumSidecarLength;
+	private readonly uint? _steamSlotFileVersion;
 
 	protected DoomIdTechHandler(
 		string handlerId,
 		string gameName,
 		string archiveSlug,
-		int checksumSidecarLength)
+		int checksumSidecarLength,
+		uint? steamSlotFileVersion = null)
 	{
 		_handlerId = handlerId;
 		_gameName = gameName;
 		_archiveSlug = archiveSlug;
 		_checksumSidecarLength = checksumSidecarLength;
+		_steamSlotFileVersion = steamSlotFileVersion;
 	}
 
 	public string Id => _handlerId;
@@ -84,7 +89,8 @@ public abstract class DoomIdTechHandler : IGameSaveHandler
 				{
 					cancellationToken.ThrowIfCancellationRequested();
 					var entry = RequireEntry(container, fileName);
-					var encrypted = IdTechSteamSaveCrypto.Encrypt(File.ReadAllBytes(entry.Path), fileName, steamId);
+					var payload = _handler.PrepareSteamExportPayload(fileName, File.ReadAllBytes(entry.Path));
+					var encrypted = IdTechSteamSaveCrypto.Encrypt(payload, fileName, steamId);
 					var outputPath = workspace.GetPath(Path.Combine(container.Name, fileName));
 					File.WriteAllBytes(outputPath, encrypted);
 					artifacts.Add(new ExportArtifact($"{container.Name}/{fileName}", outputPath));
@@ -221,6 +227,33 @@ public abstract class DoomIdTechHandler : IGameSaveHandler
 		mutations.Add(new PlannedReplacement(new WgsEntryKey(targetSlotName, checksumName), preparedPath));
 	}
 
+	private byte[] PrepareSteamExportPayload(string fileName, byte[] payload)
+	{
+		if (!_steamSlotFileVersion.HasValue || !fileName.StartsWith("game_duration.dat", StringComparison.Ordinal))
+			return payload;
+
+		if (payload.Length < 16
+			|| BinaryPrimitives.ReadUInt32LittleEndian(payload.AsSpan(4, 4)) != 8
+			|| !payload.AsSpan(8, 8).SequenceEqual(SlotFileMarker))
+		{
+			throw new InvalidDataException($"'{fileName}' does not contain the expected SlotFile header.");
+		}
+
+		var currentVersion = BinaryPrimitives.ReadUInt32LittleEndian(payload.AsSpan(0, 4));
+		if (currentVersion == _steamSlotFileVersion.Value)
+			return payload;
+		if (currentVersion != 10 || _steamSlotFileVersion.Value != 11)
+		{
+			throw new InvalidDataException(
+				$"Cannot prepare '{fileName}' for Steam: unsupported SlotFile version {currentVersion} " +
+				$"(expected 10 or {_steamSlotFileVersion.Value}).");
+		}
+
+		var patched = (byte[])payload.Clone();
+		BinaryPrimitives.WriteUInt32LittleEndian(patched.AsSpan(0, 4), _steamSlotFileVersion.Value);
+		return patched;
+	}
+
 	private static void ValidateAutosavePayload(string fileName, byte[] data)
 	{
 		if (fileName.StartsWith("game.details", StringComparison.Ordinal))
@@ -254,7 +287,12 @@ public sealed class DoomDarkAgesHandler : DoomIdTechHandler
 	public const string HandlerId = "doom-dark-ages";
 
 	public DoomDarkAgesHandler()
-		: base(HandlerId, "DOOM: The Dark Ages", "doom_the_dark_ages", checksumSidecarLength: sizeof(ulong))
+		: base(
+			HandlerId,
+			"DOOM: The Dark Ages",
+			"doom_the_dark_ages",
+			checksumSidecarLength: sizeof(ulong),
+			steamSlotFileVersion: 11)
 	{
 	}
 }

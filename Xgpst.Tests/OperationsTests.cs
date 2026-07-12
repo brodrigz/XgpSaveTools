@@ -1,11 +1,12 @@
 using System.IO.Compression;
 using System.Text;
 using XgpSaveTools;
+using XgpSaveTools.Common;
 using XgpSaveTools.Extensions;
 using XgpSaveTools.Operations;
 using XgpSaveTools.Records;
+using XgpSaveTools.SaveHandlers;
 using XgpSaveTools.SaveHandlers.Impl;
-using XgpSaveTools.SaveHandlers.Impl.Generic;
 
 namespace Xgpst.Tests;
 
@@ -34,26 +35,56 @@ public sealed class OperationsTests
 	}
 
 	[Fact]
-	public void TransformedLegacyHandler_AdvertisesExportOnly()
+	public void TransformedHandler_AdvertisesExportOnly()
 	{
-		var adapter = new LegacySaveHandlerAdapter("persona-3-reload", new Persona3ReloadHandler());
+		var handler = new Persona3ReloadHandler();
 		var context = CreateEmptyContext();
 
-		var operations = adapter.GetOperations(context);
+		var operations = handler.GetOperations(context);
 
 		Assert.Single(operations);
 		Assert.Equal("extract", operations[0].Definition.Id);
 	}
 
 	[Fact]
-	public void DirectLegacyHandler_AdvertisesExplicitReplaceAndDeleteOperations()
+	public void StandardHandler_AdvertisesExplicitReplaceAndDeleteOperations()
 	{
-		var adapter = new LegacySaveHandlerAdapter("generic", new GenericHandler());
 		var context = CreateEmptyContext();
+		var handler = GameSaveHandlerRegistry.Resolve(context.Game);
 
-		var operationIds = adapter.GetOperations(context).Select(x => x.Definition.Id).ToArray();
+		var operationIds = handler.GetOperations(context).Select(x => x.Definition.Id).ToArray();
 
 		Assert.Equal(new[] { "extract", "replace-entry", "delete-entry" }, operationIds);
+	}
+
+	[Fact]
+	public void HandlerRegistry_ResolvesEveryConfiguredHandler()
+	{
+		foreach (var game in GameList.ReadGameList())
+			Assert.Equal(game.Handler, GameSaveHandlerRegistry.Resolve(game).Id);
+
+		var unknown = new GameInfo("Unknown", "Unknown.Package", "not-registered", null);
+		Assert.Equal("generic", GameSaveHandlerRegistry.Resolve(unknown).Id);
+	}
+
+	[Fact]
+	public async Task StandardHandler_PreparesDirectMappedExportPlan()
+	{
+		using var fixture = new WgsFixture();
+		var handler = GameSaveHandlerRegistry.Resolve(fixture.Context.Game);
+		var operation = handler.GetOperations(fixture.Context).Single(x => x.Definition.Id == "extract");
+		using var workspace = new TempWorkspace();
+
+		var plan = Assert.IsType<ExportPlan>(await operation.PrepareAsync(
+			fixture.Context,
+			new OperationArguments(new Dictionary<string, object?>()),
+			workspace,
+			CancellationToken.None));
+
+		Assert.Equal(new[] { "first", "second" }, plan.Files.Select(x => x.OutputName));
+		Assert.Equal(
+			new[] { fixture.FirstEntry.Path, fixture.SecondEntry.Path },
+			plan.Files.Select(x => x.PreparedFile));
 	}
 
 	[Fact]

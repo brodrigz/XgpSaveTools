@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text;
 using XgpSaveTools.Operations;
@@ -11,7 +12,13 @@ public sealed class DoomDarkAgesTests
 	private const string SteamId = "76561197960265729";
 	private static readonly byte[] Details = Encoding.UTF8.GetBytes(
 		"checksum=123\ncompleted=0\ngameVersion=1145896964\nslotId=00000000000000000000000000000000\n");
-	private static readonly byte[] Duration = Encoding.ASCII.GetBytes("\0\0\0\0\0\0\0\0SlotFile\0sample-duration-payload");
+	private static readonly byte[] Duration =
+	{
+		10, 0, 0, 0,
+		8, 0, 0, 0,
+		(byte)'S', (byte)'l', (byte)'o', (byte)'t', (byte)'F', (byte)'i', (byte)'l', (byte)'e',
+		0, (byte)'s', (byte)'a', (byte)'m', (byte)'p', (byte)'l', (byte)'e'
+	};
 
 	[Fact]
 	public void Decrypt_MatchesPublishedIdSaveDataResignerVector()
@@ -50,7 +57,7 @@ public sealed class DoomDarkAgesTests
 	}
 
 	[Fact]
-	public async Task ExportToSteam_EncryptsPayloadsAndExcludesXgpChecksums()
+	public async Task DarkAgesExport_UpgradesSlotFileVersionAndEncryptsPayloads()
 	{
 		using var fixture = new DoomFixture();
 		var handler = new DoomDarkAgesHandler();
@@ -71,9 +78,13 @@ public sealed class DoomDarkAgesTests
 		foreach (var artifact in plan.Files)
 		{
 			var fileName = Path.GetFileName(artifact.OutputName);
-			var expected = fileName.StartsWith("game.details", StringComparison.Ordinal) ? Details : Duration;
+			var expected = fileName.StartsWith("game.details", StringComparison.Ordinal)
+				? Details
+				: WithSlotFileVersion(Duration, 11);
 			var decrypted = IdTechSteamSaveCrypto.Decrypt(File.ReadAllBytes(artifact.PreparedFile), fileName, SteamId);
 			Assert.Equal(expected, decrypted);
+			if (!fileName.StartsWith("game.details", StringComparison.Ordinal))
+				Assert.Equal(Duration.AsSpan(4).ToArray(), decrypted.AsSpan(4).ToArray());
 		}
 	}
 
@@ -82,9 +93,10 @@ public sealed class DoomDarkAgesTests
 	{
 		using var fixture = new DoomFixture();
 		var steamDirectory = fixture.CreateDirectory("steam/GAME-AUTOSAVE1");
+		var steamDuration = WithSlotFileVersion(Duration, 11);
 		foreach (var fileName in DoomFixture.AutosaveFileNames)
 		{
-			var data = fileName.StartsWith("game.details", StringComparison.Ordinal) ? Details : Duration;
+			var data = fileName.StartsWith("game.details", StringComparison.Ordinal) ? Details : steamDuration;
 			File.WriteAllBytes(
 				Path.Combine(steamDirectory, fileName),
 				IdTechSteamSaveCrypto.Encrypt(data, fileName, SteamId));
@@ -109,7 +121,39 @@ public sealed class DoomDarkAgesTests
 		Assert.All(plan.Mutations, x => Assert.Equal("GAME-AUTOSAVE1", x.Target.ContainerName));
 		var currentChecksum = Assert.IsType<PlannedReplacement>(
 			plan.Mutations.Single(x => x.Target.FileName == "game_duration.dat.checksum"));
-		Assert.Equal(IdTechBlockChecksum.CreateSidecar(Duration), File.ReadAllBytes(currentChecksum.PreparedFile));
+		Assert.Equal(IdTechBlockChecksum.CreateSidecar(steamDuration), File.ReadAllBytes(currentChecksum.PreparedFile));
+		var currentDuration = Assert.IsType<PlannedReplacement>(
+			plan.Mutations.Single(x => x.Target.FileName == "game_duration.dat"));
+		Assert.Equal(steamDuration, File.ReadAllBytes(currentDuration.PreparedFile));
+	}
+
+	[Fact]
+	public async Task DarkAgesExport_LeavesVersion11PayloadUnchanged()
+	{
+		using var fixture = new DoomFixture();
+		var version11 = WithSlotFileVersion(Duration, 11);
+		foreach (var entry in fixture.Context.Containers.SelectMany(x => x.Files)
+			.Where(x => x.Name.StartsWith("game_duration.dat", StringComparison.Ordinal)))
+		{
+			File.WriteAllBytes(entry.Path, version11);
+		}
+
+		var handler = new DoomDarkAgesHandler();
+		var operation = handler.GetOperations(fixture.Context).Single(x => x.Definition.Id == "export-to-steam");
+		using var workspace = new TempWorkspace();
+		var plan = Assert.IsType<ExportPlan>(await operation.PrepareAsync(
+			fixture.Context,
+			new OperationArguments(new Dictionary<string, object?> { ["steam-id64"] = SteamId }),
+			workspace,
+			CancellationToken.None));
+
+		foreach (var artifact in plan.Files.Where(x =>
+			Path.GetFileName(x.OutputName).StartsWith("game_duration.dat", StringComparison.Ordinal)))
+		{
+			var fileName = Path.GetFileName(artifact.OutputName);
+			var decrypted = IdTechSteamSaveCrypto.Decrypt(File.ReadAllBytes(artifact.PreparedFile), fileName, SteamId);
+			Assert.Equal(version11, decrypted);
+		}
 	}
 
 	[Fact]
@@ -140,6 +184,13 @@ public sealed class DoomDarkAgesTests
 		Assert.Equal(4, exportPlan.Files.Count);
 		Assert.DoesNotContain(exportPlan.Files, x => x.OutputName.StartsWith("PROFILE/", StringComparison.Ordinal));
 		Assert.All(exportPlan.Files, x => Assert.StartsWith($"{slotName}/", x.OutputName));
+		foreach (var artifact in exportPlan.Files.Where(x =>
+			Path.GetFileName(x.OutputName).StartsWith("game_duration.dat", StringComparison.Ordinal)))
+		{
+			var fileName = Path.GetFileName(artifact.OutputName);
+			var decrypted = IdTechSteamSaveCrypto.Decrypt(File.ReadAllBytes(artifact.PreparedFile), fileName, SteamId);
+			Assert.Equal(Duration, decrypted);
+		}
 
 		var importOperation = handler.GetOperations(fixture.Context).Single(x => x.Definition.Id == "import-from-steam");
 		using var importWorkspace = new TempWorkspace();
@@ -160,6 +211,13 @@ public sealed class DoomDarkAgesTests
 		var checksum = Assert.IsType<PlannedReplacement>(
 			importPlan.Mutations.Single(x => x.Target.FileName == "game_duration.dat.checksum"));
 		Assert.Equal(IdTechBlockChecksum.CreateSidecar(Duration, sizeof(uint)), File.ReadAllBytes(checksum.PreparedFile));
+	}
+
+	private static byte[] WithSlotFileVersion(byte[] payload, uint version)
+	{
+		var output = (byte[])payload.Clone();
+		BinaryPrimitives.WriteUInt32LittleEndian(output.AsSpan(0, sizeof(uint)), version);
+		return output;
 	}
 
 	private sealed class DoomFixture : IDisposable
