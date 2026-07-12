@@ -28,6 +28,7 @@ public static class GameSaveHandlerRegistry
 			["scorn"] = new StandardGameSaveHandler("scorn", StandardGameMappings.Scorn),
 			["state-of-decay-2"] = new StandardGameSaveHandler("state-of-decay-2", StandardGameMappings.StateOfDecay2),
 			["control"] = new ControlHandler(),
+			["fallout-4"] = new Fallout4Handler(),
 			["one-lonely-outpost"] = new OneLonelyOutpostHandler(),
 			["persona-3-reload"] = new Persona3ReloadHandler(),
 			["starfield"] = new StarfieldHandler(),

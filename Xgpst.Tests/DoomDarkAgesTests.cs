@@ -76,7 +76,7 @@ public sealed class DoomDarkAgesTests
 		var versionParameter = Assert.IsType<TextParameter>(
 			operation.GetParameters(fixture.Context).Single(x => x.Key == "slot-file-version"));
 		Assert.Equal("11", versionParameter.DefaultValue);
-		Assert.Contains("Steam currently uses version 11", versionParameter.Description);
+		Assert.Contains("Steam uses version 11", versionParameter.Description);
 		Assert.DoesNotContain(operation.GetParameters(fixture.Context), x => x.Key == "include-profile");
 		Assert.DoesNotContain(plan.Files, x => x.OutputName.StartsWith("PROFILE/", StringComparison.Ordinal));
 		Assert.DoesNotContain(plan.Files, x => x.OutputName.EndsWith(".checksum", StringComparison.Ordinal));
@@ -125,7 +125,7 @@ public sealed class DoomDarkAgesTests
 		var versionParameter = Assert.IsType<TextParameter>(
 			operation.GetParameters(fixture.Context).Single(x => x.Key == "slot-file-version"));
 		Assert.Equal("10", versionParameter.DefaultValue);
-		Assert.Contains("Xbox/Game Pass currently uses version 10", versionParameter.Description);
+		Assert.Contains("Xbox/Game Pass build uses version 10", versionParameter.Description);
 		Assert.DoesNotContain(operation.GetParameters(fixture.Context), x => x.Key == "include-profile");
 		Assert.DoesNotContain(plan.Mutations, x => x.Target.ContainerName == "PROFILE");
 		Assert.All(plan.Mutations, x => Assert.Equal("GAME-AUTOSAVE1", x.Target.ContainerName));
