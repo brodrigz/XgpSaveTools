@@ -1,55 +1,36 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using XgpSaveTools.Extensions;
-using XgpSaveTools.Records;
+using XgpSaveTools.Operations;
 
-namespace XgpSaveTools.SaveHandlers.Impl
+namespace XgpSaveTools.SaveHandlers.Impl;
+
+public sealed class Persona3ReloadHandler : ExportOnlyGameSaveHandler
 {
-	public class Persona3ReloadHandler : ISaveHandler, IExportOnlySaveHandler
+	private const string Key = "ae5zeitaix1joowooNgie3fahP5Ohph";
+
+	public override string Id => "persona-3-reload";
+
+	protected override Task<IReadOnlyList<ExportArtifact>> PrepareExportAsync(
+		GameSaveContext context,
+		ITempWorkspace workspace,
+		CancellationToken cancellationToken)
 	{
-		private const string Key = "ae5zeitaix1joowooNgie3fahP5Ohph";
-
-		public bool CanHandle(string handlerName) => handlerName == "persona-3-reload";
-
-		public IEnumerable<SaveFile> GetSaveEntries(
-			List<ContainerMetaFile> containers,
-			HandlerArgs? handlerArgs)
+		var artifacts = new List<ExportArtifact>();
+		foreach (var container in context.Containers)
 		{
-			// create a temp subfolder for the encrypted files
-			var tmp = IoExtensions.CreateTempFolder();
-			var p3rDir = Path.Combine(tmp.FullName, "P3R");
-			Directory.CreateDirectory(p3rDir);
-
-			int keyLen = Key.Length;
-			foreach (var c in containers)
+			cancellationToken.ThrowIfCancellationRequested();
+			var fileName = container.Name + ".sav";
+			var data = File.ReadAllBytes(container.Files[0].Path);
+			var output = new byte[data.Length];
+			for (var index = 0; index < data.Length; index++)
 			{
-				// original filename + .sav
-				string fileName = c.Name + ".sav";
-				string sourcePath = c.Files[0].Path;
-				string destPath = Path.Combine(p3rDir, fileName);
-
-				// read, transform, write
-				byte[] data = File.ReadAllBytes(sourcePath);
-				byte[] output = new byte[data.Length];
-
-				for (int i = 0; i < data.Length; i++)
-				{
-					byte b = data[i];
-					byte transformed = (byte)(
-						((b >> 4) & 0x03) | // upper 2 bits
-						((b & 0x03) << 4) | // lower 2 bits
-						(b & 0xCC)            // middle bits
-					);
-					byte keyByte = (byte)Key[i % keyLen];
-					output[i] = (byte)(transformed ^ keyByte);
-				}
-
-				File.WriteAllBytes(destPath, output);
-				yield return new SaveFile(fileName, destPath);
+				var value = data[index];
+				var transformed = (byte)(((value >> 4) & 0x03) | ((value & 0x03) << 4) | (value & 0xCC));
+				output[index] = (byte)(transformed ^ (byte)Key[index % Key.Length]);
 			}
+
+			var destination = workspace.GetPath(Path.Combine("P3R", fileName));
+			File.WriteAllBytes(destination, output);
+			artifacts.Add(new ExportArtifact(fileName, destination));
 		}
+		return Task.FromResult<IReadOnlyList<ExportArtifact>>(artifacts);
 	}
 }

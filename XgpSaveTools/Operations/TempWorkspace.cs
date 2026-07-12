@@ -44,7 +44,7 @@ public sealed class TempWorkspace : ITempWorkspace
 		}
 		catch
 		{
-			// Temporary cleanup is best effort. Existing global cleanup remains as a fallback.
+			// Temporary cleanup is best effort.
 		}
 	}
 }

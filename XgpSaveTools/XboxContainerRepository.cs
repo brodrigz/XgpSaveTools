@@ -81,108 +81,10 @@ namespace XgpSaveTools
 			return (storePkg, containers);
 		}
 
-		public void RemoveEntry(Guid fileId, GameInfo info, UserContainerFolder userContainer) => throw new NotImplementedException();
-
-		public string BackupFolder(GameInfo gameInfo, UserContainerFolder userContainer) => CopyDirectory(userContainer.Dir,
-			Path.Combine(BackupOutput, DateTime.Now.ToString("yyyy.MM.dd"), gameInfo.Name, userContainer.UserTag));
-
-		public IEnumerable<SaveFile> GetSaveEntries(GameInfo info, UserContainerFolder userContainer)
-		{
-			var (storePkg, conts) = ReadUserContainers(userContainer.Dir);
-			var handler = SaveHandlerFactory.Get(info.Handler);
-			return handler.GetSaveEntries(conts, info.HandlerArgs);
-		}
-
 		public GameSaveContext CreateGameSaveContext(GameInfo info, UserContainerFolder userContainer)
 		{
 			var (storePackage, containers) = ReadUserContainers(userContainer.Dir);
 			return new GameSaveContext(info, userContainer, storePackage, containers);
-		}
-
-		private bool IsNumeric(string s) => double.TryParse(s, out _);
-		private bool ExtensionIsNumeric(string extensionStr)
-		{
-			if (string.IsNullOrEmpty(extensionStr)) return false;
-			return IsNumeric(extensionStr.Replace(".", ""));
-		}
-
-		private void HandleEntryDeletion(ContainerEntry entry)
-		{
-			var file = new FileInfo(entry.Path);
-			var dir = file.Directory;
-			var otherFiles = dir.EnumerateFiles().Where(f => f.FullName != file.FullName).ToArray();
-
-			if (otherFiles.Length == 1 && ExtensionIsNumeric(otherFiles[0].Extension)) // 1cn1f delete entire folder
-			{
-				Console.WriteLine($"Removing {dir.FullName}");
-				dir.Delete(true);
-			}
-			else // delete only entry file
-			{
-				Console.WriteLine($"Removing {file.FullName}");
-				file.Delete();
-			}
-		}
-
-		public void ReplaceEntries(GameInfo info, UserContainerFolder userContainer, IEnumerable<EntryReplacement> replacements)
-		{
-			//Console.WriteLine("");
-			//Console.WriteLine($"{replacements.Where(x => x.ReplacementFile != null).Count()} entries will be replaced");
-			//Console.WriteLine("");
-			//Console.WriteLine($"{replacements.Where(x => x.ReplacementFile == null).Count()} entries will be removed");
-			Console.WriteLine("");
-			Console.WriteLine($"Backup created at {BackupFolder(info, userContainer)}");
-			Console.WriteLine("");
-			foreach (var rep in replacements.Where(x => x.ReplacementFile == null))
-			{
-				HandleEntryDeletion(rep.TargetFile);
-				Console.WriteLine("");
-			}
-			foreach (var rep in replacements.Where(x => x.ReplacementFile != null))
-			{
-				Console.WriteLine($"Replacing {rep.TargetFile.Path}");
-				File.Copy(rep.ReplacementFile.FullName, rep.TargetFile.Path, overwrite: true);
-				Console.WriteLine("");
-			}
-			Console.WriteLine("Operation completed.");
-		}
-
-		public int Extract(GameInfo info, UserContainerFolder userContainer)
-		{
-			int result = 0;
-			Console.WriteLine($"- {info.Name}");
-			try
-			{
-				var entries = GetSaveEntries(info, userContainer).ToList();
-				if (!entries.Any())
-				{
-					Console.WriteLine($"No entries found for {userContainer.UserTag}");
-					return -1;
-				}
-
-				string zipName = GetZipName(info, userContainer);
-				using var zip = ZipFile.Open(zipName, ZipArchiveMode.Create);
-
-				Console.WriteLine($"Saving files for user {userContainer.UserTag}:");
-				foreach (var saveEntry in entries)
-				{
-					Console.WriteLine($"  - {saveEntry.OutputName}");
-					zip.CreateEntryFromFile(saveEntry.ContainerEntry.Path, saveEntry.OutputName, CompressionLevel.Optimal);
-					result++;
-				}
-
-				Console.WriteLine($"Save files written to \"{zipName}\"\n");
-				return result;
-			}
-			catch
-			{
-				Console.WriteLine("Extraction Failed");
-				throw;
-			}
-			finally
-			{
-				IoExtensions.ClearTempFolders();
-			}
 		}
 
 		#region PRIVATE
@@ -247,27 +149,6 @@ namespace XgpSaveTools
 			return results;
 		}
 
-		private string GetZipName(GameInfo gameInfo, UserContainerFolder userContainer)
-		{
-			var formatted = gameInfo.Name.Replace(' ', '_').Replace(':', '_').Replace("'", "").Replace("!", "").ToLower();
-			var timestamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
-			return $"{formatted}_{userContainer.UserTag}_{timestamp}.zip";
-		}
-
-		public void AddEntry(FileInfo file, GameInfo info, UserContainerFolder userContainer)
-		{
-			throw new NotImplementedException();
-			var (storePkg, conts) = ReadUserContainers(userContainer.Dir);
-
-			using var fs = File.OpenRead(file.FullName);
-			using var br = new BinaryReader(fs, Encoding.Unicode);
-
-			//build entry
-			var entry = new ContainerEntryBinaryModel()
-			{
-				ContainerNum = (byte)(conts.Max(x => x.Number) + 1)
-			};
-		}
 		#endregion
 
 	}

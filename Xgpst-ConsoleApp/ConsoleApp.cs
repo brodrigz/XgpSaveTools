@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using XgpSaveTools;
 using XgpSaveTools.Extensions;
 using XgpSaveTools.Records;
-using static XgpSaveTools.Extensions.IoExtensions;
 using static XgpSaveTools.Common.GameList;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -26,11 +25,6 @@ namespace Xgpst_ConsoleApp
 
 		private IEnumerable<UnregisteredGameInfo> DiscoveredUnregisteredGame => _discoveredGames.OfType<UnregisteredGameInfo>();
 		private IEnumerable<GameInfo> DiscoveredSupportedGames => _discoveredGames.Where(x => x is not UnregisteredGameInfo);
-		public ConsoleApp()
-		{
-			AppDomain.CurrentDomain.ProcessExit += (_, _) => ClearTempFolders();
-		}
-
 		private void Reset()
 		{
 			Console.ResetColor();
@@ -168,7 +162,7 @@ namespace Xgpst_ConsoleApp
 		{
 			if (_selectedGame == null || _selectedContainer == null) return;
 			var context = _manager.CreateGameSaveContext(_selectedGame, _selectedContainer);
-			var handler = GameSaveHandlerFactory.Get(_selectedGame);
+			var handler = GameSaveHandlerRegistry.Resolve(_selectedGame);
 			var menu = handler.GetOperations(context)
 				.Select(x => new OperationMenuItem(x.Definition.DisplayName, x))
 				.Append(new OperationMenuItem("Open Directory", null))
@@ -193,35 +187,28 @@ namespace Xgpst_ConsoleApp
 
 		private void ExecuteOperation(GameSaveContext context, IGameSaveOperation operation)
 		{
-			try
+			var parameters = operation.GetParameters(context);
+			var inputProvider = new ConsoleOperationInputProvider(_helper);
+			var arguments = inputProvider.CollectAsync(parameters, CancellationToken.None).GetAwaiter().GetResult();
+			if (arguments == null) return;
+
+			using var workspace = new TempWorkspace();
+			var plan = operation.PrepareAsync(context, arguments, workspace, CancellationToken.None).GetAwaiter().GetResult();
+			var presenter = new ConsoleOperationPresenter(_helper);
+			if (!presenter.PresentAndConfirm(plan)) return;
+
+			var executor = new OperationExecutor(_manager);
+			var result = plan switch
 			{
-				var parameters = operation.GetParameters(context);
-				var inputProvider = new ConsoleOperationInputProvider(_helper);
-				var arguments = inputProvider.CollectAsync(parameters, CancellationToken.None).GetAwaiter().GetResult();
-				if (arguments == null) return;
+				ExportPlan export => executor.ExecuteExport(export),
+				ImportPlan import => executor.ExecuteImport(context, import),
+				_ => throw new NotSupportedException($"Unsupported operation plan: {plan.GetType().Name}")
+			};
 
-				using var workspace = new TempWorkspace();
-				var plan = operation.PrepareAsync(context, arguments, workspace, CancellationToken.None).GetAwaiter().GetResult();
-				var presenter = new ConsoleOperationPresenter(_helper);
-				if (!presenter.PresentAndConfirm(plan)) return;
-
-				var executor = new OperationExecutor(_manager);
-				var result = plan switch
-				{
-					ExportPlan export => executor.ExecuteExport(export),
-					ImportPlan import => executor.ExecuteImport(context, import),
-					_ => throw new NotSupportedException($"Unsupported operation plan: {plan.GetType().Name}")
-				};
-
-				if (result.OutputPath != null) _helper.WriteSuccess($"Files written to {result.OutputPath}");
-				if (result.BackupPath != null) _helper.WriteSuccess($"Backup created at {result.BackupPath}");
-				_helper.WriteSuccess($"Operation completed ({result.AffectedFiles} files).");
-				_helper.WaitInput();
-			}
-			finally
-			{
-				ClearTempFolders();
-			}
+			if (result.OutputPath != null) _helper.WriteSuccess($"Files written to {result.OutputPath}");
+			if (result.BackupPath != null) _helper.WriteSuccess($"Backup created at {result.BackupPath}");
+			_helper.WriteSuccess($"Operation completed ({result.AffectedFiles} files).");
+			_helper.WaitInput();
 		}
 		#endregion
 

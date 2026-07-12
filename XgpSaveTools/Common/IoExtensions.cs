@@ -20,36 +20,6 @@ namespace XgpSaveTools.Extensions
 		public static readonly string GameListPath = Path.Combine(AppContext.BaseDirectory, "games.json");
 		public static readonly string BackupOutput = Path.Combine(AppContext.BaseDirectory, "Backups");
 
-		private static readonly object _lock = new();
-		private static readonly List<DirectoryInfo> TempFolders = new();
-
-		public static DirectoryInfo CreateTempFolder()
-		{
-			var temp = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-			var dir = Directory.CreateDirectory(temp);
-			lock (_lock)
-			{
-				TempFolders.Add(dir);
-			}
-			return dir;
-		}
-
-		public static void ClearTempFolders()
-		{
-			foreach (var folder in TempFolders)
-			{
-				try
-				{
-					folder.Delete(true);
-				}
-				catch (Exception ex)
-				{
-					Console.Error.WriteLine($"Failed to delete temp folder '{folder.FullName}': {ex.Message}");
-				}
-			}
-			TempFolders.Clear();
-		}
-
 		// Recursively copy a directory
 		public static string CopyDirectory(string sourceDir, string targetDir)
 		{

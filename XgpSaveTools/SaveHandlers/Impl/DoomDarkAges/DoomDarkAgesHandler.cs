@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Globalization;
 using System.Text;
 using XgpSaveTools.Operations;
 using XgpSaveTools.Records;
@@ -10,6 +11,7 @@ public abstract class DoomIdTechHandler : IGameSaveHandler
 	private const string SteamIdKey = "steam-id64";
 	private const string SourceDirectoryKey = "source-directory";
 	private const string TargetSlotKey = "target-slot";
+	private const string SlotFileVersionKey = "slot-file-version";
 
 	private static readonly string[] AutosaveFiles =
 	{
@@ -24,20 +26,23 @@ public abstract class DoomIdTechHandler : IGameSaveHandler
 	private readonly string _gameName;
 	private readonly string _archiveSlug;
 	private readonly int _checksumSidecarLength;
-	private readonly uint? _steamSlotFileVersion;
+	private readonly uint? _defaultSteamSlotFileVersion;
+	private readonly uint? _defaultXgpSlotFileVersion;
 
 	protected DoomIdTechHandler(
 		string handlerId,
 		string gameName,
 		string archiveSlug,
 		int checksumSidecarLength,
-		uint? steamSlotFileVersion = null)
+		uint? defaultSteamSlotFileVersion = null,
+		uint? defaultXgpSlotFileVersion = null)
 	{
 		_handlerId = handlerId;
 		_gameName = gameName;
 		_archiveSlug = archiveSlug;
 		_checksumSidecarLength = checksumSidecarLength;
-		_steamSlotFileVersion = steamSlotFileVersion;
+		_defaultSteamSlotFileVersion = defaultSteamSlotFileVersion;
+		_defaultXgpSlotFileVersion = defaultXgpSlotFileVersion;
 	}
 
 	public string Id => _handlerId;
@@ -68,7 +73,16 @@ public abstract class DoomIdTechHandler : IGameSaveHandler
 
 		public IReadOnlyList<OperationParameter> GetParameters(GameSaveContext context)
 		{
-			return new OperationParameter[] { SteamIdParameter("Target SteamID64") };
+			var parameters = new List<OperationParameter> { SteamIdParameter("Target SteamID64") };
+			if (_handler._defaultSteamSlotFileVersion.HasValue)
+			{
+				parameters.Add(SlotFileVersionParameter(
+					"Target Steam SlotFile version",
+					_handler._defaultSteamSlotFileVersion.Value,
+					"Enter the target savegame version\n" +
+					"*As of the current date, Steam uses version 11. If you get an 'Invalid savegame version' error try bumping this version."));
+			}
+			return parameters;
 		}
 
 		public Task<OperationPlan> PrepareAsync(
@@ -79,6 +93,7 @@ public abstract class DoomIdTechHandler : IGameSaveHandler
 		{
 			arguments.Validate(GetParameters(context));
 			var steamId = arguments.GetRequiredString(SteamIdKey);
+			var slotFileVersion = _handler.GetSlotFileVersion(arguments, _handler._defaultSteamSlotFileVersion);
 			var artifacts = new List<ExportArtifact>();
 			var autosaves = context.Containers.Where(_handler.IsSaveSlot).ToList();
 			if (autosaves.Count == 0) throw new InvalidDataException("No compatible DOOM save-slot containers were found.");
@@ -89,7 +104,7 @@ public abstract class DoomIdTechHandler : IGameSaveHandler
 				{
 					cancellationToken.ThrowIfCancellationRequested();
 					var entry = RequireEntry(container, fileName);
-					var payload = _handler.PrepareSteamExportPayload(fileName, File.ReadAllBytes(entry.Path));
+					var payload = PrepareSlotFilePayload(fileName, File.ReadAllBytes(entry.Path), slotFileVersion);
 					var encrypted = IdTechSteamSaveCrypto.Encrypt(payload, fileName, steamId);
 					var outputPath = workspace.GetPath(Path.Combine(container.Name, fileName));
 					File.WriteAllBytes(outputPath, encrypted);
@@ -125,15 +140,24 @@ public abstract class DoomIdTechHandler : IGameSaveHandler
 				.ToList();
 			if (slots.Count == 0) throw new InvalidOperationException("Create an XGP autosave slot before importing.");
 
-			return new OperationParameter[]
+			var parameters = new List<OperationParameter>
 			{
 				new DirectoryParameter(
 					SourceDirectoryKey,
 					"Steam save-slot directory",
 					"Select the directory that directly contains game.details and game_duration.dat."),
-				SteamIdParameter("Source SteamID64"),
-				new ChoiceParameter(TargetSlotKey, "Target existing XGP slot", slots)
+				SteamIdParameter("Source SteamID64")
 			};
+			if (_handler._defaultXgpSlotFileVersion.HasValue)
+			{
+				parameters.Add(SlotFileVersionParameter(
+					"Target XGP SlotFile version",
+					_handler._defaultXgpSlotFileVersion.Value,
+					"Enter the target savegame version\n" +
+					"*As of the current date, the Xbox/Game Pass build uses version 10. If you get an 'Invalid savegame version' error try changing this version."));
+			}
+			parameters.Add(new ChoiceParameter(TargetSlotKey, "Target existing XGP slot", slots));
+			return parameters;
 		}
 
 		public Task<OperationPlan> PrepareAsync(
@@ -145,6 +169,7 @@ public abstract class DoomIdTechHandler : IGameSaveHandler
 			arguments.Validate(GetParameters(context));
 			var sourceDirectory = arguments.GetRequiredString(SourceDirectoryKey);
 			var steamId = arguments.GetRequiredString(SteamIdKey);
+			var slotFileVersion = _handler.GetSlotFileVersion(arguments, _handler._defaultXgpSlotFileVersion);
 			var targetSlotName = arguments.GetRequiredString(TargetSlotKey);
 			var targetContainer = RequireContainer(context, targetSlotName);
 			var mutations = new List<PlannedWgsMutation>();
@@ -157,6 +182,7 @@ public abstract class DoomIdTechHandler : IGameSaveHandler
 				if (!File.Exists(sourcePath)) throw new FileNotFoundException($"Required Steam save file not found: {fileName}", sourcePath);
 				var plaintext = IdTechSteamSaveCrypto.Decrypt(File.ReadAllBytes(sourcePath), fileName, steamId);
 				ValidateAutosavePayload(fileName, plaintext);
+				plaintext = PrepareSlotFilePayload(fileName, plaintext, slotFileVersion);
 				decrypted[fileName] = plaintext;
 
 				var preparedPath = workspace.GetPath(Path.Combine("import", fileName));
@@ -197,8 +223,27 @@ public abstract class DoomIdTechHandler : IGameSaveHandler
 		return new TextParameter(
 			SteamIdKey,
 			label,
-			"Use the 17-digit SteamID64 of the account that owns or will own the encrypted files.",
+			"Enter the SteamID64 of the account that will own the save (can check online with https://steamid.io/)",
 			Validator: IdTechSteamSaveCrypto.ValidateSteamId64);
+	}
+
+	private static TextParameter SlotFileVersionParameter(string label, uint defaultValue, string description)
+	{
+		return new TextParameter(
+			SlotFileVersionKey,
+			label,
+			description,
+			DefaultValue: defaultValue.ToString(CultureInfo.InvariantCulture),
+			Validator: value => uint.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var version)
+				&& version > 0
+				? null
+				: "SlotFile version must be a positive 32-bit integer.");
+	}
+
+	private uint? GetSlotFileVersion(OperationArguments arguments, uint? defaultValue)
+	{
+		if (!defaultValue.HasValue) return null;
+		return uint.Parse(arguments.GetRequiredString(SlotFileVersionKey), CultureInfo.InvariantCulture);
 	}
 
 	private static ContainerMetaFile RequireContainer(GameSaveContext context, string name)
@@ -227,9 +272,9 @@ public abstract class DoomIdTechHandler : IGameSaveHandler
 		mutations.Add(new PlannedReplacement(new WgsEntryKey(targetSlotName, checksumName), preparedPath));
 	}
 
-	private byte[] PrepareSteamExportPayload(string fileName, byte[] payload)
+	private static byte[] PrepareSlotFilePayload(string fileName, byte[] payload, uint? targetVersion)
 	{
-		if (!_steamSlotFileVersion.HasValue || !fileName.StartsWith("game_duration.dat", StringComparison.Ordinal))
+		if (!targetVersion.HasValue || !fileName.StartsWith("game_duration.dat", StringComparison.Ordinal))
 			return payload;
 
 		if (payload.Length < 16
@@ -240,17 +285,11 @@ public abstract class DoomIdTechHandler : IGameSaveHandler
 		}
 
 		var currentVersion = BinaryPrimitives.ReadUInt32LittleEndian(payload.AsSpan(0, 4));
-		if (currentVersion == _steamSlotFileVersion.Value)
+		if (currentVersion == targetVersion.Value)
 			return payload;
-		if (currentVersion != 10 || _steamSlotFileVersion.Value != 11)
-		{
-			throw new InvalidDataException(
-				$"Cannot prepare '{fileName}' for Steam: unsupported SlotFile version {currentVersion} " +
-				$"(expected 10 or {_steamSlotFileVersion.Value}).");
-		}
 
 		var patched = (byte[])payload.Clone();
-		BinaryPrimitives.WriteUInt32LittleEndian(patched.AsSpan(0, 4), _steamSlotFileVersion.Value);
+		BinaryPrimitives.WriteUInt32LittleEndian(patched.AsSpan(0, 4), targetVersion.Value);
 		return patched;
 	}
 
@@ -292,7 +331,8 @@ public sealed class DoomDarkAgesHandler : DoomIdTechHandler
 			"DOOM: The Dark Ages",
 			"doom_the_dark_ages",
 			checksumSidecarLength: sizeof(ulong),
-			steamSlotFileVersion: 11)
+			defaultSteamSlotFileVersion: 11,
+			defaultXgpSlotFileVersion: 10)
 	{
 	}
 }

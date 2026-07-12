@@ -1,80 +1,56 @@
-﻿using Newtonsoft.Json.Linq;
-using System;
 using System.IO.Compression;
-using System.Linq;
 using System.Text;
-using XgpSaveTools.Extensions;
-using XgpSaveTools.Records;
+using Newtonsoft.Json.Linq;
+using XgpSaveTools.Operations;
 
-namespace XgpSaveTools.SaveHandlers.Impl
+namespace XgpSaveTools.SaveHandlers.Impl;
+
+public sealed class OneLonelyOutpostHandler : ExportOnlyGameSaveHandler
 {
-    public class OneLonelyOutpostHandler : ISaveHandler, IExportOnlySaveHandler
-    {
-        public bool CanHandle(string handlerName) => handlerName == "one-lonely-outpost";
+	public override string Id => "one-lonely-outpost";
 
-        public IEnumerable<SaveFile> GetSaveEntries(
-            List<ContainerMetaFile> containers,
-            HandlerArgs? handlerArgs)
-        {
-            if (containers == null || containers.Count == 0)
-                yield break;
+	protected override Task<IReadOnlyList<ExportArtifact>> PrepareExportAsync(
+		GameSaveContext context,
+		ITempWorkspace workspace,
+		CancellationToken cancellationToken)
+	{
+		if (context.Containers.Count == 0 || context.Containers[0].Files.Count == 0)
+			return Task.FromResult<IReadOnlyList<ExportArtifact>>(Array.Empty<ExportArtifact>());
 
-            var container = containers[0];
-            if (container.Files == null || container.Files.Count == 0)
-                yield break;
+		string json;
+		using (var source = File.OpenRead(context.Containers[0].Files[0].Path))
+		using (var gzip = new GZipStream(source, CompressionMode.Decompress))
+		using (var output = new MemoryStream())
+		{
+			gzip.CopyTo(output);
+			json = Encoding.UTF8.GetString(output.ToArray());
+		}
 
-            // tmp subfolder for extraction
-            var tempRoot = IoExtensions.CreateTempFolder();
-            var outDir = Path.Combine(tempRoot.FullName, "OneLonelyOutpost");
-            Directory.CreateDirectory(outDir);
+		JObject root;
+		try
+		{
+			root = JObject.Parse(json);
+		}
+		catch (Exception exception)
+		{
+			throw new InvalidDataException("Failed to parse decompressed JSON for One Lonely Outpost.", exception);
+		}
 
-            // decompress gz json
-            string jsonText;
-            var blobPath = container.Files[0].Path;
-            using (var fs = File.OpenRead(blobPath))
-            using (var gz = new GZipStream(fs, CompressionMode.Decompress))
-            using (var ms = new MemoryStream())
-            {
-                gz.CopyTo(ms);
-                jsonText = Encoding.UTF8.GetString(ms.ToArray());
-            }
-
-            JObject root;
-            try
-            {
-                root = JObject.Parse(jsonText);
-            }
-            catch (Exception ex)
-            {
-                throw new InvalidDataException("Failed to parse decompressed JSON for One Lonely Outpost", ex);
-            }
-
-            var filesArray = root.SelectToken("files.$values") as JArray;
-            if (filesArray == null)
-                yield break;
-
-            foreach (var file in filesArray)
-            {
-                var rawName = file["name"]?.ToString();
-                if (string.IsNullOrEmpty(rawName)) continue;
-
-                const string prefix = "ConsoleSaves/";
-                var fname = rawName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
-                    ? rawName[prefix.Length..]
-                    : rawName;
-
-                var destPath = Path.Combine(outDir, fname);
-                var destDir = Path.GetDirectoryName(destPath);
-                if (!string.IsNullOrEmpty(destDir))
-                    Directory.CreateDirectory(destDir);
-
-                var dataToken = file.SelectToken("datas.$values[0]");
-                if (dataToken == null)
-                    continue;
-
-                File.WriteAllText(destPath, dataToken.ToString());
-                yield return new SaveFile(fname, destPath);
-            }
-        }
-    }
+		var artifacts = new List<ExportArtifact>();
+		if (root.SelectToken("files.$values") is not JArray files) return Task.FromResult<IReadOnlyList<ExportArtifact>>(artifacts);
+		foreach (var file in files)
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+			var rawName = file["name"]?.ToString();
+			if (string.IsNullOrEmpty(rawName)) continue;
+			const string prefix = "ConsoleSaves/";
+			var name = rawName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ? rawName[prefix.Length..] : rawName;
+			var data = file.SelectToken("datas.$values[0]");
+			if (data == null) continue;
+			var destination = workspace.GetPath(name);
+			File.WriteAllText(destination, data.ToString());
+			artifacts.Add(new ExportArtifact(name.Replace('\\', '/'), destination));
+		}
+		return Task.FromResult<IReadOnlyList<ExportArtifact>>(artifacts);
+	}
 }

@@ -64,7 +64,8 @@ public sealed class DoomDarkAgesTests
 		var operation = handler.GetOperations(fixture.Context).Single(x => x.Definition.Id == "export-to-steam");
 		var arguments = new OperationArguments(new Dictionary<string, object?>
 		{
-			["steam-id64"] = SteamId
+			["steam-id64"] = SteamId,
+			["slot-file-version"] = "11"
 		});
 		using var workspace = new TempWorkspace();
 
@@ -72,6 +73,10 @@ public sealed class DoomDarkAgesTests
 			fixture.Context, arguments, workspace, CancellationToken.None));
 
 		Assert.Equal(4, plan.Files.Count);
+		var versionParameter = Assert.IsType<TextParameter>(
+			operation.GetParameters(fixture.Context).Single(x => x.Key == "slot-file-version"));
+		Assert.Equal("11", versionParameter.DefaultValue);
+		Assert.Contains("Steam currently uses version 11", versionParameter.Description);
 		Assert.DoesNotContain(operation.GetParameters(fixture.Context), x => x.Key == "include-profile");
 		Assert.DoesNotContain(plan.Files, x => x.OutputName.StartsWith("PROFILE/", StringComparison.Ordinal));
 		Assert.DoesNotContain(plan.Files, x => x.OutputName.EndsWith(".checksum", StringComparison.Ordinal));
@@ -108,6 +113,7 @@ public sealed class DoomDarkAgesTests
 		{
 			["source-directory"] = steamDirectory,
 			["steam-id64"] = SteamId,
+			["slot-file-version"] = "10",
 			["target-slot"] = "GAME-AUTOSAVE1"
 		});
 		using var workspace = new TempWorkspace();
@@ -116,19 +122,23 @@ public sealed class DoomDarkAgesTests
 			fixture.Context, arguments, workspace, CancellationToken.None));
 
 		Assert.Equal(6, plan.Mutations.Count);
+		var versionParameter = Assert.IsType<TextParameter>(
+			operation.GetParameters(fixture.Context).Single(x => x.Key == "slot-file-version"));
+		Assert.Equal("10", versionParameter.DefaultValue);
+		Assert.Contains("Xbox/Game Pass currently uses version 10", versionParameter.Description);
 		Assert.DoesNotContain(operation.GetParameters(fixture.Context), x => x.Key == "include-profile");
 		Assert.DoesNotContain(plan.Mutations, x => x.Target.ContainerName == "PROFILE");
 		Assert.All(plan.Mutations, x => Assert.Equal("GAME-AUTOSAVE1", x.Target.ContainerName));
 		var currentChecksum = Assert.IsType<PlannedReplacement>(
 			plan.Mutations.Single(x => x.Target.FileName == "game_duration.dat.checksum"));
-		Assert.Equal(IdTechBlockChecksum.CreateSidecar(steamDuration), File.ReadAllBytes(currentChecksum.PreparedFile));
+		Assert.Equal(IdTechBlockChecksum.CreateSidecar(Duration), File.ReadAllBytes(currentChecksum.PreparedFile));
 		var currentDuration = Assert.IsType<PlannedReplacement>(
 			plan.Mutations.Single(x => x.Target.FileName == "game_duration.dat"));
-		Assert.Equal(steamDuration, File.ReadAllBytes(currentDuration.PreparedFile));
+		Assert.Equal(Duration, File.ReadAllBytes(currentDuration.PreparedFile));
 	}
 
 	[Fact]
-	public async Task DarkAgesExport_LeavesVersion11PayloadUnchanged()
+	public async Task DarkAgesExport_UsesSelectedSlotFileVersion()
 	{
 		using var fixture = new DoomFixture();
 		var version11 = WithSlotFileVersion(Duration, 11);
@@ -143,7 +153,11 @@ public sealed class DoomDarkAgesTests
 		using var workspace = new TempWorkspace();
 		var plan = Assert.IsType<ExportPlan>(await operation.PrepareAsync(
 			fixture.Context,
-			new OperationArguments(new Dictionary<string, object?> { ["steam-id64"] = SteamId }),
+			new OperationArguments(new Dictionary<string, object?>
+			{
+				["steam-id64"] = SteamId,
+				["slot-file-version"] = "12"
+			}),
 			workspace,
 			CancellationToken.None));
 
@@ -152,7 +166,8 @@ public sealed class DoomDarkAgesTests
 		{
 			var fileName = Path.GetFileName(artifact.OutputName);
 			var decrypted = IdTechSteamSaveCrypto.Decrypt(File.ReadAllBytes(artifact.PreparedFile), fileName, SteamId);
-			Assert.Equal(version11, decrypted);
+			Assert.Equal(WithSlotFileVersion(version11, 12), decrypted);
+			Assert.Equal(version11.AsSpan(4).ToArray(), decrypted.AsSpan(4).ToArray());
 		}
 	}
 
