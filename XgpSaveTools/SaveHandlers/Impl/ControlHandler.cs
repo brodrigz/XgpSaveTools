@@ -1,28 +1,27 @@
-﻿using XgpSaveTools.Extensions;
-using XgpSaveTools.Records;
+using XgpSaveTools.Operations;
 
-namespace XgpSaveTools.SaveHandlers.Impl
+namespace XgpSaveTools.SaveHandlers.Impl;
+
+public sealed class ControlHandler : ExportOnlyGameSaveHandler
 {
-    public class ControlHandler : ISaveHandler
-    {
-        public bool CanHandle(string handlerName) => handlerName == "control";
+	public override string Id => "control";
 
-        public IEnumerable<SaveFile> GetSaveEntries(List<ContainerMetaFile> containers, HandlerArgs? args)
-        {
-            foreach (var container in containers)
-            {
-                var folder = container.Name;
-                // synthetic container name file
-                var dispPath = Path.Combine(IoExtensions.CreateTempFolder().FullName, container.Name + "_--containerDisplayName.chunk");
-                File.WriteAllText(dispPath, container.Name);
-                yield return new(Path.Combine(folder, "--containerDisplayName.chunk").Replace('\\', '/'), dispPath);
+	protected override Task<IReadOnlyList<ExportArtifact>> PrepareExportAsync(
+		GameSaveContext context,
+		ITempWorkspace workspace,
+		CancellationToken cancellationToken)
+	{
+		var artifacts = new List<ExportArtifact>();
+		foreach (var container in context.Containers)
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+			var displayName = workspace.GetPath(Path.Combine(container.Name, "--containerDisplayName.chunk"));
+			File.WriteAllText(displayName, container.Name);
+			artifacts.Add(new ExportArtifact($"{container.Name}/--containerDisplayName.chunk", displayName));
 
-                foreach (var file in container.Files)
-                {
-                    var entry = Path.Combine(folder, file.Name + ".chunk").Replace('\\', '/');
-                    yield return new(entry, file);
-                }
-            }
-        }
-    }
+			foreach (var entry in container.Files)
+				artifacts.Add(new ExportArtifact($"{container.Name}/{entry.Name}.chunk", entry.Path));
+		}
+		return Task.FromResult<IReadOnlyList<ExportArtifact>>(artifacts);
+	}
 }

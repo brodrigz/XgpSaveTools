@@ -328,7 +328,12 @@
     {
       "name": "Doom Eternal",
       "package": "BethesdaSoftworks.DOOMEternal-PC_3275kfvn8vcwc",
-      "handler": "1cnf-folder"
+      "handler": "doom-eternal"
+    },
+    {
+      "name": "DOOM: The Dark Ages",
+      "package": "BethesdaSoftworks.ProjectTitan_3275kfvn8vcwc",
+      "handler": "doom-dark-ages"
     },
     {
       "name": "Rematch",

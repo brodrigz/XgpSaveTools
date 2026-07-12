@@ -1,45 +1,51 @@
-﻿using System.Text;
-using XgpSaveTools.Records;
-using static XgpSaveTools.Extensions.IoExtensions;
+using System.Text;
+using XgpSaveTools.Operations;
 
-namespace XgpSaveTools.SaveHandlers.Impl
+namespace XgpSaveTools.SaveHandlers.Impl;
+
+public sealed class Fallout4Handler : ExportOnlyGameSaveHandler
 {
-    public class Fallout4Handler : ISaveHandler
-    {
-        public bool CanHandle(string handlerName) => handlerName == "fallout-4";
+	public override string Id => "fallout-4";
 
-        public IEnumerable<SaveFile> GetSaveEntries(List<ContainerMetaFile> containers, HandlerArgs? args)
-        {
-            var outDir = Path.Combine(CreateTempFolder().FullName, "Fallout4");
-            Directory.CreateDirectory(outDir);
-            var padStr = Encoding.ASCII.GetBytes(string.Concat(Enumerable.Repeat("padding\0", 2)));
+	protected override Task<IReadOnlyList<ExportArtifact>> PrepareExportAsync(
+		GameSaveContext context,
+		ITempWorkspace workspace,
+		CancellationToken cancellationToken)
+	{
+		var artifacts = new List<ExportArtifact>();
+		var padding = Encoding.ASCII.GetBytes(string.Concat(Enumerable.Repeat("padding\0", 2)));
 
-            foreach (var c in containers)
-            {
-                var path = c.Name.Replace("\\", "/");
-                if (!path.StartsWith("Saves/")) continue;
-                var saveName = Path.GetFileName(path);
-                var parts = new SortedDictionary<int, string>();
-                bool isNew = c.Files.Any(f => f.Name == "toc");
-                foreach (var f in c.Files)
-                {
-                    if (f.Name == "toc") continue;
-                    int idx = isNew
-                        ? int.Parse(f.Name.Replace("ChunkData", ""))
-                        : (f.Name == "FO4_SAVEGAME" ? 0 : int.Parse(f.Name.TrimStart('P')) + 1);
-                    parts[idx] = f.Path;
-                }
-                var outFile = Path.Combine(outDir, saveName);
-                using var outFs = File.OpenWrite(outFile);
-                foreach (var kv in parts)
-                {
-                    var data = File.ReadAllBytes(kv.Value);
-                    outFs.Write(data, 0, data.Length);
-                    var pad = 16 - (data.Length % 16);
-                    if (pad < 16) outFs.Write(padStr, 0, pad);
-                }
-                yield return new(saveName, outFile);
-            }
-        }
-    }
+		foreach (var container in context.Containers)
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+			var logicalPath = container.Name.Replace('\\', '/');
+			if (!logicalPath.StartsWith("Saves/", StringComparison.Ordinal)) continue;
+
+			var saveName = Path.GetFileName(logicalPath);
+			var parts = new SortedDictionary<int, string>();
+			var isNewFormat = container.Files.Any(entry => entry.Name == "toc");
+			foreach (var entry in container.Files)
+			{
+				if (entry.Name == "toc") continue;
+				var index = isNewFormat
+					? int.Parse(entry.Name.Replace("ChunkData", string.Empty))
+					: entry.Name == "FO4_SAVEGAME" ? 0 : int.Parse(entry.Name.TrimStart('P')) + 1;
+				parts[index] = entry.Path;
+			}
+
+			var output = workspace.GetPath(Path.Combine("Fallout4", saveName));
+			using (var stream = File.Create(output))
+			foreach (var part in parts.Values)
+			{
+				var data = File.ReadAllBytes(part);
+				stream.Write(data, 0, data.Length);
+				var paddingLength = 16 - data.Length % 16;
+				if (paddingLength < 16) stream.Write(padding, 0, paddingLength);
+			}
+
+			artifacts.Add(new ExportArtifact(saveName, output));
+		}
+
+		return Task.FromResult<IReadOnlyList<ExportArtifact>>(artifacts);
+	}
 }
