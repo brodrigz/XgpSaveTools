@@ -46,6 +46,18 @@ internal static class StandardGameMappings
 		yield return MappedSaveEntry.Create("RATSaveData.dat", container, container.Files.First());
 	}
 
+	public static IEnumerable<MappedSaveEntry> Balatro(GameSaveContext context)
+	{
+		foreach (var container in context.Containers)
+		foreach (var entry in container.Files)
+		{
+			var outputName = container.Name.Equals("common", StringComparison.OrdinalIgnoreCase)
+				? entry.Name
+				: Path.Combine(container.Name, entry.Name).Replace('\\', '/');
+			yield return MappedSaveEntry.Create(outputName, container, entry);
+		}
+	}
+
 	public static IEnumerable<MappedSaveEntry> CoralIsland(GameSaveContext context)
 	{
 		foreach (var container in context.Containers)
@@ -75,6 +87,14 @@ internal static class StandardGameMappings
 		foreach (var container in context.Containers)
 		foreach (var entry in container.Files)
 			yield return MappedSaveEntry.Create($"{container.Name}.{entry.Name}", container, entry);
+	}
+
+	public static IEnumerable<MappedSaveEntry> Galacticare(GameSaveContext context)
+	{
+		foreach (var container in context.Containers)
+		foreach (var entry in container.Files)
+		if (entry.Name.Equals("PlayerData", StringComparison.OrdinalIgnoreCase))
+			yield return MappedSaveEntry.Create(container.Name, container, entry);
 	}
 
 	public static IEnumerable<MappedSaveEntry> LiesOfP(GameSaveContext context)
@@ -115,6 +135,25 @@ internal static class StandardGameMappings
 		}
 	}
 
+	public static IEnumerable<MappedSaveEntry> MetaphorRefantazio(GameSaveContext context)
+	{
+		foreach (var container in context.Containers)
+		{
+			if (container.Files.Count == 0) continue;
+
+			string outputName;
+			if (container.Name.StartsWith("System", StringComparison.OrdinalIgnoreCase))
+				outputName = "system.sav";
+			else if (container.Name.StartsWith("SaveData", StringComparison.OrdinalIgnoreCase))
+				outputName = "save" + container.Name["SaveData".Length..] + ".sav";
+			else
+				throw new InvalidDataException(
+					$"Unexpected Metaphor: ReFantazio save container '{container.Name}'.");
+
+			yield return MappedSaveEntry.Create(outputName, container, container.Files[0]);
+		}
+	}
+
 	public static IEnumerable<MappedSaveEntry> Palworld(GameSaveContext context)
 	{
 		foreach (var container in context.Containers)
@@ -139,6 +178,49 @@ internal static class StandardGameMappings
 				? StringExtensions.FixMissingDotOnExtension(entry.OutputName, suffixes)
 				: entry.OutputName;
 			yield return entry with { OutputName = name };
+		}
+	}
+
+	public static IEnumerable<MappedSaveEntry> Silksong(GameSaveContext context)
+	{
+		foreach (var container in context.Containers)
+		foreach (var entry in container.Files)
+		{
+			string outputName;
+			if (container.Name.Contains("shared", StringComparison.OrdinalIgnoreCase) ||
+			    container.Name.Contains("save", StringComparison.OrdinalIgnoreCase))
+			{
+				outputName = entry.Name;
+			}
+			else if (container.Name.Contains("restore", StringComparison.OrdinalIgnoreCase))
+			{
+				var numberStart = -1;
+				var numberLength = 0;
+				for (var index = 0; index < container.Name.Length; index++)
+				{
+					if (!char.IsDigit(container.Name[index]))
+					{
+						if (numberStart >= 0) break;
+						continue;
+					}
+
+					if (numberStart < 0) numberStart = index;
+					numberLength++;
+				}
+
+				if (numberStart < 0)
+					throw new InvalidDataException(
+						$"Silksong restore container '{container.Name}' does not contain a restore-point number.");
+
+				var number = container.Name.Substring(numberStart, numberLength);
+				outputName = Path.Combine($"Restore_Points{number}", entry.Name).Replace('\\', '/');
+			}
+			else
+			{
+				outputName = Path.Combine(container.Name, entry.Name).Replace('\\', '/');
+			}
+
+			yield return MappedSaveEntry.Create(outputName, container, entry);
 		}
 	}
 

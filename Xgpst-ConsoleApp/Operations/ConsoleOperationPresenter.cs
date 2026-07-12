@@ -18,6 +18,7 @@ public sealed class ConsoleOperationPresenter
 		switch (plan)
 		{
 			case ExportPlan export:
+				foreach (var warning in export.Warnings ?? Array.Empty<string>()) _helper.WriteWarning(warning);
 				Console.WriteLine($"Files to export: {export.Files.Count}");
 				foreach (var file in export.Files)
 				{
@@ -26,7 +27,14 @@ public sealed class ConsoleOperationPresenter
 						: "missing";
 					Console.WriteLine($"  - {file.OutputName} ({size})");
 				}
-				return true;
+				if (export.Warnings == null || export.Warnings.Count == 0) return true;
+				Console.WriteLine();
+				var exportChoice = _helper.SelectOption(
+					new[] { "Continue", "Cancel" },
+					"Create this archive?",
+					x => x,
+					disableGoBack: true);
+				return exportChoice.Key == 0;
 
 			case ImportPlan import:
 				foreach (var warning in import.Warnings) _helper.WriteWarning(warning);

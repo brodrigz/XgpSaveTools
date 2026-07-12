@@ -11,6 +11,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using XgpSaveTools.Operations;
 using XgpSaveTools.SaveHandlers;
+using XgpSaveTools.SaveSources;
 using Xgpst_ConsoleApp.Operations;
 
 namespace Xgpst_ConsoleApp
@@ -122,9 +123,31 @@ namespace Xgpst_ConsoleApp
 		private void CustomPathMode()
 		{
 			Newline();
-			string path = _helper.ReadValidDirectory("Enter wgs folder path:");
+			string path = _helper.ReadValidDirectory("Enter wgs or PGS folder path:");
 			var dir = new DirectoryInfo(path);
 			if (!Directory.Exists(dir.FullName)) throw new FileNotFoundException();
+
+			var pgsCandidates = ReadGameList()
+				.Where(x => string.Equals(x.Source, "pgs", StringComparison.OrdinalIgnoreCase))
+				.SelectMany(game => GameSaveSourceRegistry.Resolve(game)
+					.FindUserContainers(game)
+					.Where(location => PathsOverlap(dir.FullName, location.Dir))
+					.Select(location => (Game: game, Location: location)))
+				.ToList();
+			if (pgsCandidates.Count > 0)
+			{
+				var selected = pgsCandidates.Count == 1
+					? pgsCandidates[0]
+					: _helper.SelectOption(
+						pgsCandidates,
+						"Select PGS save:",
+						x => $"{x.Game.Name} - {x.Location.UserTag}").Value;
+				_selectedGame = selected.Game;
+				_selectedContainer = selected.Location;
+				SelectOperation();
+				return;
+			}
+
 			_manager.OverrideWgsPath = dir.FullName;
 			Newline();
 			_selectedGame = _manager.DiscoverGameInfoFromPath(dir.FullName);
@@ -132,11 +155,22 @@ namespace Xgpst_ConsoleApp
 			SelectUserContainer();
 		}
 
+		private static bool PathsOverlap(string first, string second)
+		{
+			static string Normalize(string value) =>
+				Path.GetFullPath(value).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+			var a = Normalize(first);
+			var b = Normalize(second);
+			return a.StartsWith(b, StringComparison.OrdinalIgnoreCase) ||
+				b.StartsWith(a, StringComparison.OrdinalIgnoreCase);
+		}
+
 		private void SelectUserContainer()
 		{
 			if (_selectedGame == null) return;
 			Newline();
-			var containers = _manager.FindUserContainers(_selectedGame.Package).ToList();
+			var source = GameSaveSourceRegistry.Resolve(_selectedGame);
+			var containers = source.FindUserContainers(_selectedGame).ToList();
 			if (!containers.Any()) throw new Exception("No user containers found");
 
 			var selection = _helper.SelectOption(
@@ -161,7 +195,8 @@ namespace Xgpst_ConsoleApp
 		private void SelectOperation()
 		{
 			if (_selectedGame == null || _selectedContainer == null) return;
-			var context = _manager.CreateGameSaveContext(_selectedGame, _selectedContainer);
+			var source = GameSaveSourceRegistry.Resolve(_selectedGame);
+			var context = source.CreateContext(_selectedGame, _selectedContainer);
 			var handler = GameSaveHandlerRegistry.Resolve(_selectedGame);
 			var menu = handler.GetOperations(context)
 				.Select(x => new OperationMenuItem(x.Definition.DisplayName, x))

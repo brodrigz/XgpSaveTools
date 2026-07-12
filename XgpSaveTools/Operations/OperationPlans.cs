@@ -6,7 +6,8 @@ public sealed record ExportArtifact(string OutputName, string PreparedFile);
 
 public sealed record ExportPlan(
 	IReadOnlyList<ExportArtifact> Files,
-	string SuggestedArchiveName)
+	string SuggestedArchiveName,
+	IReadOnlyList<string>? Warnings = null)
 	: OperationPlan;
 
 public sealed record WgsEntryKey(string ContainerName, string FileName);

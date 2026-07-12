@@ -72,6 +72,9 @@ public sealed class OperationExecutor
 
 	public OperationExecutionResult ExecuteImport(GameSaveContext context, ImportPlan plan)
 	{
+		if (!context.Source.Equals("wgs", StringComparison.OrdinalIgnoreCase))
+			throw new NotSupportedException(
+				$"The {context.Source.ToUpperInvariant()} save source is read-only. Import is not supported.");
 		if (plan.Mutations.Count == 0) throw new InvalidOperationException("The import plan contains no mutations.");
 		if (plan.Mutations.Count > 1 && plan.Mutations.OfType<PlannedDeletion>().Any(x => x.DeleteContainerFolder))
 			throw new InvalidOperationException("Deleting an entire WGS container folder must be executed as a standalone operation.");
