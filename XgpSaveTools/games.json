@@ -380,6 +380,52 @@
       "handler": "metaphor-refantazio"
     },
     {
+      "name": "Solarpunk",
+      "package": "rokapublish.Solarpunk_6q4vfhsywtz4j",
+      "handler": "1c1f",
+      "handler_args": {
+        "suffix": ".sav"
+      }
+    },
+    {
+      "name": "Crime Scene Cleaner",
+      "package": "5901F20F.CrimeSceneCleaner_t06nbjdc8fw86",
+      "handler": "1cnf"
+    },
+    {
+      "name": "Roadside Research",
+      "package": "OroInteractive.RoadsideResearch_z7bgc74zqm87r",
+      "handler": "generic"
+    },
+    {
+      "name": "TCG Card Shop Simulator",
+      "package": "OPNEONGAMES.TCGCardShopSimulator_19j6by82ahhzr",
+      "handler": "1c1f",
+      "handler_args": {
+        "suffix": ".json"
+      }
+    },
+    {
+      "name": "Ninja Gaiden 2 Black",
+      "package": "946B6A6E.NINJAGAIDEN2Black_dkffhzhmh6pmy",
+      "handler": "ninja-gaiden-2-black"
+    },
+    {
+      "name": "Dragon Ball Xenoverse 2",
+      "package": "NAMCOBANDAIGamesInc.DBXV2BaseGame_gdy2aq6ez762w",
+      "handler": "dragon-ball-xenoverse-2-raw"
+    },
+    {
+      "name": "Abiotic Factor",
+      "package": "PlayStack.AbioticFactor_3wcqaesafpzfy",
+      "handler": "abiotic-factor-raw"
+    },
+    {
+      "name": "Brotato",
+      "package": "19886SeavenStudio.Brotato_fahzzgrzfd3xc",
+      "handler": "brotato"
+    },
+    {
       "name": "Persona 3 Reload",
       "package": "SEGAofAmericaInc.L0cb6b3aea_s751p9cej88mt",
       "handler": "persona-3-reload"

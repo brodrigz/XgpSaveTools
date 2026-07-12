@@ -154,6 +154,44 @@ internal static class StandardGameMappings
 		}
 	}
 
+	public static IEnumerable<MappedSaveEntry> NinjaGaiden2Black(GameSaveContext context)
+	{
+		foreach (var container in context.Containers)
+		{
+			if (container.Files.Count == 0) continue;
+			var name = container.Name;
+			if (!name.EndsWith("DAT", StringComparison.OrdinalIgnoreCase))
+				throw new InvalidDataException(
+					$"Unexpected Ninja Gaiden 2 Black container '{container.Name}'.");
+
+			var beforeDat = name[..^3];
+			var trailingDigits = 0;
+			while (trailingDigits < beforeDat.Length && char.IsDigit(beforeDat[^(trailingDigits + 1)]))
+				trailingDigits++;
+			string? category = null;
+			for (var suffixLength = 1; suffixLength <= trailingDigits; suffixLength++)
+			{
+				var core = beforeDat[..^suffixLength];
+				if (core.Length == 0 || core.Length % 2 != 0) continue;
+				var half = core.Length / 2;
+				if (core[..half].Equals(core[half..], StringComparison.OrdinalIgnoreCase))
+				{
+					category = core[..half];
+					break;
+				}
+			}
+			if (category == null)
+				throw new InvalidDataException(
+					$"Could not derive a repeated save category from '{container.Name}'.");
+
+			if (container.Files.Count != 1)
+				throw new InvalidDataException(
+					$"Ninja Gaiden 2 Black container '{container.Name}' contains {container.Files.Count} files; expected one.");
+			yield return MappedSaveEntry.Create(
+				$"{category}/{category}.sav", container, container.Files[0]);
+		}
+	}
+
 	public static IEnumerable<MappedSaveEntry> Palworld(GameSaveContext context)
 	{
 		foreach (var container in context.Containers)
