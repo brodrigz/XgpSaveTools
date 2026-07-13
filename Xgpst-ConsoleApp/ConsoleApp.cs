@@ -18,22 +18,47 @@ namespace Xgpst_ConsoleApp
 {
 	public class ConsoleApp
 	{
-		private XboxContainerRepository _manager;
+		private readonly XboxContainerRepository _manager;
+		private readonly IReadOnlyList<GameInfo> _registeredGames;
+		private readonly GameSaveSourceResolver _sources;
+		private readonly string? _exportOutputDirectory;
+		private readonly Action<string> _openDirectory;
 		private List<GameInfo> _discoveredGames;
 		private GameInfo? _selectedGame;
 		private UserContainerFolder? _selectedContainer;
-		private ConsoleHelper _helper;
+		private readonly ConsoleHelper _helper;
+
+		public ConsoleApp(
+			XboxContainerRepository? manager = null,
+			ConsoleHelper? helper = null,
+			IReadOnlyList<GameInfo>? registeredGames = null,
+			GameSaveSourceResolver? sources = null,
+			string? exportOutputDirectory = null,
+			Action<string>? openDirectory = null)
+		{
+			_registeredGames = registeredGames ?? ReadGameList();
+			_manager = manager ?? new XboxContainerRepository();
+			_helper = helper ?? new ConsoleHelper();
+			_sources = sources ?? new GameSaveSourceResolver(new WgsGameSaveSource(_manager));
+			_exportOutputDirectory = exportOutputDirectory;
+			_openDirectory = openDirectory ?? OpenDirectory;
+			_discoveredGames = new List<GameInfo>();
+		}
 
 		private IEnumerable<UnregisteredGameInfo> DiscoveredUnregisteredGame => _discoveredGames.OfType<UnregisteredGameInfo>();
 		private IEnumerable<GameInfo> DiscoveredSupportedGames => _discoveredGames.Where(x => x is not UnregisteredGameInfo);
-		private void Reset()
+		internal GameInfo? SelectedGame => _selectedGame;
+		internal UserContainerFolder? SelectedContainer => _selectedContainer;
+
+		internal void Reset()
 		{
 			Console.ResetColor();
-			_manager = new();
-			_helper = new();
+			_manager.OverrideWgsPath = null;
+			_selectedGame = null;
+			_selectedContainer = null;
 			try
 			{
-				_discoveredGames = DiscoverUserGames(ReadGameList()).ToList();
+				_discoveredGames = DiscoverUserGames(_registeredGames, _sources).ToList();
 			}
 			catch
 			{
@@ -79,7 +104,7 @@ namespace Xgpst_ConsoleApp
 
 
 		#region Handlers
-		private void ScanGamesMode() => _ScanGamesMode();
+		internal void ScanGamesMode() => _ScanGamesMode();
 		private void _ScanGamesMode(bool showUnregistered = false)
 		{
 			if (!_discoveredGames.Any()) throw new Exception("No games found");
@@ -122,16 +147,16 @@ namespace Xgpst_ConsoleApp
 			SelectUserContainer();
 		}
 
-		private void CustomPathMode()
+		internal void CustomPathMode()
 		{
 			Newline();
 			string path = _helper.ReadValidDirectory("Enter wgs or PGS folder path:");
 			var dir = new DirectoryInfo(path);
 			if (!Directory.Exists(dir.FullName)) throw new FileNotFoundException();
 
-			var pgsCandidates = ReadGameList()
+			var pgsCandidates = _registeredGames
 				.Where(x => string.Equals(x.Source, "pgs", StringComparison.OrdinalIgnoreCase))
-				.SelectMany(game => GameSaveSourceRegistry.Resolve(game)
+				.SelectMany(game => _sources.Resolve(game)
 					.FindUserContainers(game)
 					.Where(location => PathsOverlap(dir.FullName, location.Dir))
 					.Select(location => (Game: game, Location: location)))
@@ -152,7 +177,7 @@ namespace Xgpst_ConsoleApp
 
 			_manager.OverrideWgsPath = dir.FullName;
 			Newline();
-			_selectedGame = _manager.DiscoverGameInfoFromPath(dir.FullName);
+			_selectedGame = _manager.DiscoverGameInfoFromPath(dir.FullName, _registeredGames);
 			if (_selectedGame is UnregisteredGameInfo) _helper.WriteWarning($"Package '{_selectedGame.Name}' is not registered on games.json, generic handler will be used");
 			SelectUserContainer();
 		}
@@ -171,7 +196,7 @@ namespace Xgpst_ConsoleApp
 		{
 			if (_selectedGame == null) return;
 			Newline();
-			var source = GameSaveSourceRegistry.Resolve(_selectedGame);
+			var source = _sources.Resolve(_selectedGame);
 			var containers = source.FindUserContainers(_selectedGame).ToList();
 			if (!containers.Any()) throw new Exception("No user containers found");
 
@@ -185,7 +210,7 @@ namespace Xgpst_ConsoleApp
 			SelectOperation();
 		}
 
-		private void OpenDirectory(string path)
+		private static void OpenDirectory(string path)
 		{
 			Process.Start(new ProcessStartInfo
 			{
@@ -197,7 +222,7 @@ namespace Xgpst_ConsoleApp
 		private void SelectOperation()
 		{
 			if (_selectedGame == null || _selectedContainer == null) return;
-			var source = GameSaveSourceRegistry.Resolve(_selectedGame);
+			var source = _sources.Resolve(_selectedGame);
 			var context = source.CreateContext(_selectedGame, _selectedContainer);
 			var handler = GameSaveHandlerRegistry.Resolve(_selectedGame);
 			var menu = handler.GetOperations(context)
@@ -215,7 +240,7 @@ namespace Xgpst_ConsoleApp
 
 			if (choice.Value.Operation == null)
 			{
-				OpenDirectory(_selectedContainer.Dir);
+				_openDirectory(_selectedContainer.Dir);
 				return;
 			}
 
@@ -237,7 +262,7 @@ namespace Xgpst_ConsoleApp
 			var executor = new OperationExecutor(_manager);
 			var result = plan switch
 			{
-				ExportPlan export => executor.ExecuteExport(export),
+				ExportPlan export => executor.ExecuteExport(export, _exportOutputDirectory),
 				ImportPlan import => executor.ExecuteImport(context, import),
 				_ => throw new NotSupportedException($"Unsupported operation plan: {plan.GetType().Name}")
 			};

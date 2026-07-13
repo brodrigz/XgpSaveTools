@@ -2,23 +2,41 @@ using XgpSaveTools.Records;
 
 namespace XgpSaveTools.SaveSources;
 
-public static class GameSaveSourceRegistry
+public sealed class GameSaveSourceResolver
 {
-	private static readonly IReadOnlyDictionary<string, IGameSaveSource> Sources =
-		new Dictionary<string, IGameSaveSource>(StringComparer.OrdinalIgnoreCase)
-		{
-			["wgs"] = new WgsGameSaveSource(),
-			["pgs"] = new PgsGameSaveSource()
-		};
+	private readonly IReadOnlyDictionary<string, IGameSaveSource> _sources;
 
-	public static IGameSaveSource Resolve(GameInfo game)
+	public GameSaveSourceResolver(
+		WgsGameSaveSource? wgs = null,
+		PgsGameSaveSource? pgs = null)
+	{
+		Wgs = wgs ?? new WgsGameSaveSource();
+		Pgs = pgs ?? new PgsGameSaveSource();
+		_sources = new Dictionary<string, IGameSaveSource>(StringComparer.OrdinalIgnoreCase)
+		{
+			[Wgs.Id] = Wgs,
+			[Pgs.Id] = Pgs
+		};
+	}
+
+	public WgsGameSaveSource Wgs { get; }
+	public PgsGameSaveSource Pgs { get; }
+
+	public IGameSaveSource Resolve(GameInfo game)
 	{
 		var id = string.IsNullOrWhiteSpace(game.Source) ? "wgs" : game.Source;
-		return Sources.TryGetValue(id, out var source)
+		return _sources.TryGetValue(id, out var source)
 			? source
 			: throw new InvalidDataException($"Unknown save source '{id}' for {game.Name}.");
 	}
+}
 
-	public static PgsGameSaveSource Pgs => (PgsGameSaveSource)Sources["pgs"];
-	public static WgsGameSaveSource Wgs => (WgsGameSaveSource)Sources["wgs"];
+public static class GameSaveSourceRegistry
+{
+	public static GameSaveSourceResolver Default { get; } = new();
+
+	public static IGameSaveSource Resolve(GameInfo game) => Default.Resolve(game);
+
+	public static PgsGameSaveSource Pgs => Default.Pgs;
+	public static WgsGameSaveSource Wgs => Default.Wgs;
 }

@@ -17,7 +17,7 @@ public sealed class WgsGameSaveSource : IGameSaveSource
 
 	public IEnumerable<string> EnumeratePackageNames()
 	{
-		var root = new DirectoryInfo(IoExtensions.PackagesRoot);
+		var root = new DirectoryInfo(_repository.PackagesRoot);
 		if (!root.Exists) yield break;
 		foreach (var wgsDir in root.GetDirectories("wgs", SearchOption.AllDirectories))
 		{

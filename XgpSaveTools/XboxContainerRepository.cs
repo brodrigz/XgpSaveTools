@@ -22,6 +22,12 @@ namespace XgpSaveTools
 {
 	public class XboxContainerRepository
 	{
+		public XboxContainerRepository(string? packagesRoot = null)
+		{
+			PackagesRoot = Path.GetFullPath(packagesRoot ?? IoExtensions.PackagesRoot);
+		}
+
+		public string PackagesRoot { get; }
 		public string? OverrideWgsPath { get; set; }
 
 
@@ -31,13 +37,13 @@ namespace XgpSaveTools
 			return InnerFindUserContainers(OverrideWgsPath ?? baseDir);
 		}
 
-		public GameInfo? DiscoverGameInfoFromPath(string path)
+		public GameInfo? DiscoverGameInfoFromPath(string path, IEnumerable<GameInfo>? registeredGames = null)
 		{
 			var userContainers = FindUserContainers(path);
 			if (!userContainers.Any()) throw new Exception("No user container found, directory is not on wgs format");
 			// read first to discover package
 			var result = ReadUserContainers(userContainers.FirstOrDefault().Dir);
-			var found = ReadGameList().FirstOrDefault(x => x.Package == result.StorePkg);
+			var found = (registeredGames ?? ReadGameList()).FirstOrDefault(x => x.Package == result.StorePkg);
 			if (found == null)
 			{
 				return new UnregisteredGameInfo(result.StorePkg, result.StorePkg, "generic", null);
