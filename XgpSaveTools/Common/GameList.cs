@@ -25,12 +25,15 @@ namespace XgpSaveTools.Common
             return wrapper?.Games ?? throw new Exception($"Failed to read {GameListPath}");
         }
 
-        public static IEnumerable<GameInfo> DiscoverUserGames(IEnumerable<GameInfo>? supportedGameList = null)
+        public static IEnumerable<GameInfo> DiscoverUserGames(
+            IEnumerable<GameInfo>? supportedGameList = null,
+            GameSaveSourceResolver? sources = null)
         {
             var games = (supportedGameList ?? ReadGameList()).ToList();
+            sources ??= GameSaveSourceRegistry.Default;
             var yielded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            foreach (var packageName in GameSaveSourceRegistry.Wgs.EnumeratePackageNames())
+            foreach (var packageName in sources.Wgs.EnumeratePackageNames())
             {
                 //supported
                 var supported = games.FirstOrDefault(x =>
@@ -50,7 +53,7 @@ namespace XgpSaveTools.Common
                     yield return new UnregisteredGameInfo(packageName, packageName, "generic", null);
             }
 
-            foreach (var pgsRoot in GameSaveSourceRegistry.Pgs.EnumerateUserRoots())
+            foreach (var pgsRoot in sources.Pgs.EnumerateUserRoots())
             {
                 var supported = games.FirstOrDefault(x =>
                     string.Equals(x.Source, "pgs", StringComparison.OrdinalIgnoreCase) &&

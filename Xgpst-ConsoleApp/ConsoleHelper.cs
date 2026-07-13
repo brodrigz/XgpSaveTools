@@ -4,9 +4,9 @@ namespace Xgpst_ConsoleApp
 {
     public class ConsoleHelper
     {
-        public KeyValuePair<int, T?> SelectOption<T>(IList<T> options, Func<T, string>? getLabelFunc = null, bool disableGoBack = false) => SelectOption(options, "Select Option", getLabelFunc, disableGoBack);
+        public virtual KeyValuePair<int, T> SelectOption<T>(IList<T> options, Func<T, string>? getLabelFunc = null, bool disableGoBack = false) => SelectOption(options, "Select Option", getLabelFunc, disableGoBack);
 
-        public KeyValuePair<int, T?> SelectOption<T>(
+        public virtual KeyValuePair<int, T> SelectOption<T>(
         IList<T> options,
         string prompt,
         Func<T, string>? getLabelFunc = null, bool disableGoBack = false)
@@ -24,7 +24,7 @@ namespace Xgpst_ConsoleApp
                 Console.Write($"Enter selection{(disableGoBack ? "" : "(or '0' to go back)")}: ");
                 var input = Console.ReadLine();
 
-                if (input == "0" && !disableGoBack) return new KeyValuePair<int, T?>(-1, default);
+                if (input == "0" && !disableGoBack) return new KeyValuePair<int, T>(-1, default!);
 
                 if (int.TryParse(input, out int result))
                 {
@@ -37,7 +37,7 @@ namespace Xgpst_ConsoleApp
             }
         }
 
-        public void DisplayHeader(string title, int width)
+        public virtual void DisplayHeader(string title, int width)
         {
             Console.Clear();
             var separator = new string('=', width);
@@ -47,7 +47,7 @@ namespace Xgpst_ConsoleApp
             Console.WriteLine();
         }
 
-        public FileInfo ReadValidFile(string prompt)
+        public virtual FileInfo ReadValidFile(string prompt)
         {
             while (true)
             {
@@ -58,7 +58,7 @@ namespace Xgpst_ConsoleApp
             }
         }
 
-        public string ReadValidDirectory(string prompt)
+        public virtual string ReadValidDirectory(string prompt)
         {
             while (true)
             {
@@ -69,7 +69,7 @@ namespace Xgpst_ConsoleApp
             }
         }
 
-        public void WriteError(string message)
+        public virtual void WriteError(string message)
         {
             var originalColor = Console.ForegroundColor;
             Console.ForegroundColor = ConsoleColor.Red;
@@ -77,7 +77,7 @@ namespace Xgpst_ConsoleApp
             Console.ForegroundColor = originalColor;
         }
 
-        public void WriteSuccess(string message)
+        public virtual void WriteSuccess(string message)
         {
             var originalColor = Console.ForegroundColor;
             Console.ForegroundColor = ConsoleColor.Green;
@@ -85,7 +85,7 @@ namespace Xgpst_ConsoleApp
             Console.ForegroundColor = originalColor;
         }
 
-        public void WriteWarning(string message)
+        public virtual void WriteWarning(string message)
         {
             var originalColor = Console.ForegroundColor;
             Console.ForegroundColor = ConsoleColor.Yellow;
@@ -93,13 +93,13 @@ namespace Xgpst_ConsoleApp
             Console.ForegroundColor = originalColor;
         }
 
-        public void WaitInput()
+        public virtual void WaitInput()
         {
             Console.WriteLine("\nPress any key to continue...");
             Console.ReadKey();
         }
 
-        public void WaitForExit(int code = 0)
+        public virtual void WaitForExit(int code = 0)
         {
             WaitInput();
             Environment.Exit(code);
