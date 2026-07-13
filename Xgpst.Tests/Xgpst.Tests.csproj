@@ -12,6 +12,7 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\XgpSaveTools\XgpSaveTools.csproj" />
+		<ProjectReference Include="..\Xgpst-ConsoleApp\Xgpst-ConsoleApp.csproj" />
 
 		<Content Include="FilesToCheck\**\*">
 			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
